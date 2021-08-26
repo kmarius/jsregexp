@@ -77,7 +77,7 @@ static int regex_gc(lua_State *L)
 static int jsregexp_compile(lua_State *L)
 {
 	uint8_t *bc, **ud;
-	int len, i, re_flags = 0;
+	int len, re_flags = 0;
 	char error_msg[64];
 	const char *regex;
 
