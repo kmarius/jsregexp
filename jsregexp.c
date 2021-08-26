@@ -70,7 +70,7 @@ static int match_closure(lua_State *L)
 
 static int regex_gc(lua_State *L)
 {
-	free(*(char**)lua_touserdata(L, 1));
+	free(*(uint8_t**)lua_touserdata(L, 1));
 	return 0;
 }
 
