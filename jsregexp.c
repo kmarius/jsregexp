@@ -104,7 +104,7 @@ static int jsregexp_compile(lua_State *L)
 	ud = (uint8_t**) lua_newuserdata(L, sizeof(*ud));
 	*ud = bc;
 
-	if (luaL_newmetatable(L, "regmeta")) {
+	if (luaL_newmetatable(L, "jsregexp_bc")) {
 		lua_pushcfunction(L, regex_gc);
 		lua_setfield(L, -2, "__gc");
 	}
