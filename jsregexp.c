@@ -50,7 +50,7 @@ static int match_closure(lua_State *L)
 		}
 
 		// These need to be recalculated for multibyte strings
-		lua_pushinteger(L, capture[0]-input);
+		lua_pushinteger(L, capture[0]-input + 1);
 		lua_setfield(L, -2, "position");
 
 		lua_pushinteger(L, capture[1]-capture[0]);
