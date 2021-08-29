@@ -1,0 +1,5 @@
+*.o
+*.so
+.ccls
+.ccls-cache
+*.lua
