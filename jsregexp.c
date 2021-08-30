@@ -81,8 +81,8 @@ static int jsregexp_compile(lua_State *L)
 
 	regex = luaL_checkstring(L, 1);
 
-	if (!lua_isnoneornil(L, 2)) {
-		const char *flags = luaL_checkstring(L, 2);
+	if (!lua_isnoneornil(L, 3)) {
+		const char *flags = luaL_checkstring(L, 3);
 		while (*flags) {
 			switch (*(flags++)) {
 				case 'i': re_flags |= LRE_FLAG_IGNORECASE; break;
@@ -98,7 +98,7 @@ static int jsregexp_compile(lua_State *L)
 		lua_pushstring(L, error_msg);
 		return 2;
 	}
-	if (NULL == (fmt = format_create(luaL_checkstring(L, 3), error_msg, sizeof(error_msg)))) {
+	if (NULL == (fmt = format_create(luaL_checkstring(L, 2), error_msg, sizeof(error_msg)))) {
 		free(bc);
 		lua_pushnil(L);
 		lua_pushstring(L, error_msg);
