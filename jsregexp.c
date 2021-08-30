@@ -127,7 +127,7 @@ static int jsregexp_compile(lua_State *L)
 }
 
 static const struct luaL_Reg lib[] = {
-	{"compile", jsregexp_compile},
+	{"transformer", jsregexp_compile},
 	{NULL, NULL}
 };
 

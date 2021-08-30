@@ -6,8 +6,8 @@ local success = 0
 
 local function test(str, regex, format, flags, want)
 	tests = tests + 1
-	local replacer, err = jsregexp.compile(regex, format, flags)
-	if not replacer then
+	local t, err = jsregexp.transformer(regex, format, flags)
+	if not t then
 		if want ~= nil then
 			print(string.format('\27[0;31mFailed:\27[m\n str=%s\n regex=%s\n format=%s\n flags=%s\n wanted=%s\n result=%s', str, regex, format, flags, want, err))
 			fails = fails + 1
@@ -19,7 +19,7 @@ local function test(str, regex, format, flags, want)
 			fails = fails + 1
 			return
 		end
-		local result = replacer(str)
+		local result = t(str)
 		if result ~= want then
 			print(string.format('\27[0;31mFailed:\27[m\n str=%s\n regex=%s\n format=%s\n flags=%s\n wanted=%s\n result=%s', str, regex, format, flags, want, result))
 			fails = fails + 1
