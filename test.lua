@@ -48,8 +48,16 @@ test("dummy", ".", "${1 }", "", nil)
 test("dummy", ".", "${1", "", nil)
 test("dummy", ".", "${-1", "", nil)
 
+test("", "(\\s)|(\\w*)", "${1:+_}${2:/upcase}", "g", "")
+test("shouldn't hang", "(\\w*)|shouldn't hang", "$1", "g", "shouldn't hang")
+
 test("dummy", "(.)", "${112837649182736541987325418976325417653120835641027}", "", "ummy")
 test("dummy", "(.)", "${20}", "", "ummy")
+test("dummy", "(.)", "$1", "", "dummy")
+test("dummy", "(dummy)", "you ${1} yo", "", "you dummy yo")
+test("dummy", "(dummy)", "you $1 yo", "", "you dummy yo")
+test("dummy", "dummy", "you $0 yo", "", "you dummy yo")
+test("dummy", "dummy", "you ${0} yo", "", "you dummy yo")
 
 test("dummy", "(\\d*).*", "a${1:ha\\", "", nil)
 test("dummy", "(\\d*).*", "a${1:ha\\}", "", nil)

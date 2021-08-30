@@ -49,7 +49,14 @@ static int match_closure(lua_State *L)
 
 		format_apply(r->fmt, sb, (char**)capture, capture_count);
 
-		/* TODO: infinite loop when (\\w*) matches with nothing? (on 2021-08-28) */
+		/* Infinite loops can happen when (\\s*)| matches with nothing
+		 * e.g. on a bad regex like (\\s*)|(\\w+)
+		 * I checked an online js repl and I think it just aborts on a match of length 0 ?
+		 * */
+		if (capture[0] == capture[1]) {
+			break;
+		}
+
 		cindex = capture[1] - input;
 		if (!global) {
 			break;

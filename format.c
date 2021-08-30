@@ -207,7 +207,7 @@ static struct trafo_t *parse_transform(const wchar_t **ww,
 		idx = idx * 10 + (*w++ - '0');
 	}
 	if (simple) {
-		*ww = w;
+		*ww = w - 1;
 		return trafo_create(idx, NULL, NULL, apply_group);
 	}
 	if (*w == L'}') {
@@ -379,6 +379,7 @@ format_t *format_create(const char *format, char *err, int err_len)
 	fmt->trafos = malloc(sizeof(struct trafo_t*) * 4);
 	fmt->size = 0;
 	int capacity = 4;
+	/* printf("%S\n", wformat); */
 
 	for (w = wformat; *w; w++) {
 		switch (*w) {
@@ -407,6 +408,7 @@ format_t *format_create(const char *format, char *err, int err_len)
 				if (!*(++w))
 					break; /* ignore \ at the very end? */
 			default:
+				/* printf("%C\n", *w); */
 				buf[buf_ind++] = *w;
 		}
 	}
@@ -418,6 +420,7 @@ format_t *format_create(const char *format, char *err, int err_len)
 		}
 
 		buf[buf_ind] = L'\0';
+		/* printf("%S\n", buf); */
 		fmt->trafos[fmt->size++] = trafo_create(0, buf, NULL, apply_const);
 	}
 	return fmt;
