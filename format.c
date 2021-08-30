@@ -130,12 +130,12 @@ static void apply_capitalize(const struct trafo_t *t, str_builder_t *sb, char **
 			if (l > 0) {
 				s += l;
 				if (cap) {
-					str_builder_add_char(sb, towupper(wc));
+					str_builder_add_wchar(sb, towupper(wc));
 					if (iswalpha(wc)) {
 						cap = 0;
 					}
 				} else {
-					str_builder_add_char(sb, towlower(wc));
+					str_builder_add_wchar(sb, towlower(wc));
 					if (!iswalpha(wc)) {
 						cap = 1;
 					}
