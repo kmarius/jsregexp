@@ -52,7 +52,7 @@ static inline void trafo_apply(struct trafo_t *t, str_builder_t *sb, char **capt
 	t->apply(t, sb, captures, capture_count);
 }
 
-static int wcshasprefix(const wchar_t *string, const wchar_t *prefix)
+static int haswprefix(const wchar_t *string, const wchar_t *prefix)
 {
 	while (*prefix) {
 		if (*prefix++ != *string++) {
@@ -224,20 +224,20 @@ static struct trafo_t *parse_transform(const wchar_t **ww,
 		case L'/':
 			{
 				apply_fun f;
-				if (wcshasprefix(w, L"/upcase}")) {
+				if (haswprefix(w, L"/upcase}")) {
 					*ww = w + wcslen(L"/upcase");
 					f = apply_upcase;
-				} else if (wcshasprefix(w, L"/downcase}")) {
+				} else if (haswprefix(w, L"/downcase}")) {
 					*ww = w + wcslen(L"/downcase");
 					f = apply_downcase;
-				} else if (wcshasprefix(w, L"/capitalize}")) {
+				} else if (haswprefix(w, L"/capitalize}")) {
 					*ww = w + wcslen(L"/capitalize");
 					f = apply_capitalize;
-				} else if (wcshasprefix(w, L"/pascalcase}")) {
+				} else if (haswprefix(w, L"/pascalcase}")) {
 					/* TODO:  (on 2021-08-29) */
 					*ww = w + wcslen(L"/pascalcase");
 					f = apply_group;
-				} else if (wcshasprefix(w, L"/camelcase}")) {
+				} else if (haswprefix(w, L"/camelcase}")) {
 					/* TODO:  (on 2021-08-29) */
 					*ww = w + wcslen(L"/camelcase");
 					f = apply_group;
