@@ -121,7 +121,7 @@ static int jsregexp_transform(lua_State *L)
 	ud->bc = bc;
 	ud->fmt = fmt;
 
-	if (luaL_newmetatable(L, "jsregexp_bc")) {
+	if (luaL_newmetatable(L, "jsregexp_transform")) {
 		lua_pushcfunction(L, transform_gc);
 		lua_setfield(L, -2, "__gc");
 	}
