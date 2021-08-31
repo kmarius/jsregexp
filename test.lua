@@ -86,6 +86,8 @@ test("dummy", "(.+)", "${1:?yep:nope}", "", "yep")
 test("dummy", "(\\d*).*", "${1:?yep:nope}", "", "nope")
 test("dummy", "(.*)", "${1:?yep:}", "", "yep")
 test("dummy", "(\\d*).*", "${1:?:nope}", "", "nope")
+test("dummy", "(\\d+)", "${1:?yep:nope} ${1:-man} ${2:+ha}", "", "nope man ") -- no match, the whole string gets replaced with the format where each 'else' branch is used
+test("dummy", "(\\d*)", "${1:?yep:nope }", "", "nope dummy") -- zero length string gets replaced at the beginning of "dummy"
 
 test("dummy", ".", "${1:/yooo}", "", nil)
 test("dummy", ".", "${1:/upcase }", "", nil)
@@ -110,5 +112,5 @@ local bold_red = "\27[1;31m"
 local normal = "\27[0m"
 
 local color = fails == 0 and bold_green or bold_red
-print(string.format("%s%d tests run, %d successes, %d failed", color, tests, success, fails), normal)
+print(string.format("%s%d tests run, %d successes, %d failed%s", color, tests, success, fails, normal))
 os.exit(fails == 0 and 0 or 1)

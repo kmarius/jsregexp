@@ -35,13 +35,12 @@ static int match_closure(lua_State *L)
 	input = (uint8_t*)luaL_checkstring(L, 1);
 	input_len = strlen((char*)input);
 
+	int nmatch = 0;
 	str_builder_clear(sb);
 	for (i = 1, cindex = 0;
 			lre_exec(capture, r->bc, input, cindex, input_len, 0, NULL) == 1;
 			i++) {
-
-		// capture[0] - begin of complete match
-		// capture[1] - end of complete match
+		nmatch++;
 
 		if (capture[0] != input + cindex) {
 			str_builder_add_str(sb, (char*)input+cindex, capture[0]-input-cindex);
@@ -49,9 +48,10 @@ static int match_closure(lua_State *L)
 
 		format_apply(r->fmt, sb, (char**)capture, capture_count);
 
-		/* Infinite loops can happen when (\\s*)| matches with nothing
+		/* Infinite loops can happen when (\\s*) matches with nothing
 		 * e.g. on a bad regex like (\\s*)|(\\w+)
 		 * I checked an online js repl and I think it just aborts on a match of length 0 ?
+		 * vscode does one transform (i.e. inserts the format since nothing is removed).
 		 * */
 		if (capture[0] == capture[1]) {
 			break;
@@ -62,7 +62,12 @@ static int match_closure(lua_State *L)
 			break;
 		}
 	}
-	str_builder_add_str(sb, (char*)input+cindex, 0);
+	if (nmatch == 0) {
+		// Trigger 'else' part of ${N:?*:*} and ${N:-*} placeholders
+		format_apply(r->fmt, sb, NULL, 0);
+	} else {
+		str_builder_add_str(sb, (char*)input+cindex, 0);
+	}
 	lua_pushstring(L, str_builder_peek(sb));
 	str_builder_clear(sb);
 	return 1;

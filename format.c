@@ -8,6 +8,8 @@
 #include "format.h"
 #include "str_builder.h"
 
+/* TODO: not actually certain if vscode distinguishes between no match and
+ * capture of length 0 (on 2021-08-31) */
 #define CAPTURE(cap, i) (cap)[2*i]
 #define CAPTURE_END(cap, i) (cap)[2*i+1]
 #define CAPTURE_LEN(cap, i) (cap)[2*i+1] - (cap)[2*i]
