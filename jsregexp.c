@@ -138,9 +138,9 @@ static const struct luaL_Reg lib[] = {
 
 int luaopen_jsregexp(lua_State *L)
 {
+	sb = str_builder_create();
 	/* setlocale(LC_ALL, "de_DE.UTF-8"); */
 	setlocale(LC_ALL, "en_US.UTF-8");
 	luaL_openlib(L, "jsregexp", lib, 0);
-	sb = str_builder_create();
 	return 1;
 }
