@@ -22,10 +22,9 @@ static str_builder_t *sb;
 
 static int transform_closure(lua_State *L)
 {
+	int capture_count, global, input_len, cindex, nmatch;
 	uint8_t *capture[CAPTURE_COUNT_MAX * 2];
 	const uint8_t *input;
-	char *buf;
-	int capture_count, global, input_len, cindex, i, j;
 	struct replacer_t *r;
 
 	r = lua_touserdata(L, lua_upvalueindex(1));
@@ -35,11 +34,10 @@ static int transform_closure(lua_State *L)
 	input = (uint8_t*)luaL_checkstring(L, 1);
 	input_len = strlen((char*)input);
 
-	int nmatch = 0;
 	str_builder_clear(sb);
-	for (i = 1, cindex = 0;
+	for (cindex = 0;
 			lre_exec(capture, r->bc, input, cindex, input_len, 0, NULL) == 1;
-			i++) {
+			) {
 		nmatch++;
 
 		if (capture[0] != input + cindex) {
@@ -47,6 +45,8 @@ static int transform_closure(lua_State *L)
 		}
 
 		format_apply(r->fmt, sb, (char**)capture, capture_count);
+
+		cindex = capture[1] - input;
 
 		/* Infinite loops can happen when (\\s*) matches with nothing
 		 * e.g. on a bad regex like (\\s*)|(\\w+)
@@ -57,7 +57,6 @@ static int transform_closure(lua_State *L)
 			break;
 		}
 
-		cindex = capture[1] - input;
 		if (!global) {
 			break;
 		}
