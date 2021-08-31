@@ -20,7 +20,7 @@ struct replacer_t {
 
 static str_builder_t *sb;
 
-static int match_closure(lua_State *L)
+static int transform_closure(lua_State *L)
 {
 	uint8_t *capture[CAPTURE_COUNT_MAX * 2];
 	const uint8_t *input;
@@ -73,7 +73,7 @@ static int match_closure(lua_State *L)
 	return 1;
 }
 
-static int regex_gc(lua_State *L)
+static int transform_gc(lua_State *L)
 {
 	struct replacer_t *r;
 	r = lua_touserdata(L, 1);
@@ -82,7 +82,7 @@ static int regex_gc(lua_State *L)
 	return 0;
 }
 
-static int jsregexp_compile(lua_State *L)
+static int jsregexp_transform(lua_State *L)
 {
 	uint8_t *bc;
 	struct replacer_t *ud;
@@ -122,17 +122,17 @@ static int jsregexp_compile(lua_State *L)
 	ud->fmt = fmt;
 
 	if (luaL_newmetatable(L, "jsregexp_bc")) {
-		lua_pushcfunction(L, regex_gc);
+		lua_pushcfunction(L, transform_gc);
 		lua_setfield(L, -2, "__gc");
 	}
 	lua_setmetatable(L, -2);
 
-	lua_pushcclosure(L, match_closure, 1);
+	lua_pushcclosure(L, transform_closure, 1);
 	return 1;
 }
 
 static const struct luaL_Reg lib[] = {
-	{"transformer", jsregexp_compile},
+	{"transformer", jsregexp_transform},
 	{NULL, NULL}
 };
 
