@@ -192,16 +192,19 @@ typedef struct scanner_t {
 	int buf_ind;
 } scanner_t;
 
-wchar_t scanner_peek(scanner_t *s)
+static wchar_t scanner_peek(scanner_t *s)
 {
 	return *s->pos;
 }
 
-wchar_t scanner_pop(scanner_t *s)
+static wchar_t scanner_pop(scanner_t *s)
 {
 	return *s->pos++;
 }
-wchar_t *scanner_scan(scanner_t *s, wchar_t c, int scan_to_end)
+
+// If scan_to_end is not zero, then reaching L'\0' is not an error, otherwise
+// NULL is returned.
+static wchar_t *scanner_scan(scanner_t *s, wchar_t c, int scan_to_end)
 {
 	wchar_t * const res = s->buf+s->buf_ind;
 	wchar_t w;
@@ -228,15 +231,11 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 	int idx = 0, simple = 1;
 	apply_fun f;
 
-	w = scanner_peek(s);
-	if (w != L'$') {
+	if ((w = scanner_pop(s)) != L'$') {
 		snprintf(err, err_len, "malformed placeholder: expected '$', found %c", w);
 		return NULL;
 	}
-	scanner_pop(s);
-
-	w = scanner_peek(s);
-	if (w == L'{') {
+	if ((w = scanner_peek(s)) == L'{') {
 		scanner_pop(s);
 		simple = 0;
 		w = scanner_peek(s);
