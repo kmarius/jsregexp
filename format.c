@@ -296,7 +296,7 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 				return NULL;
 			}
 			scanner_pop(s);
-			return trafo_create(idx, wcsdup(arg1), NULL, apply_if);
+			return trafo_create(idx, arg1, NULL, apply_if);
 		case L'?':
 			scanner_pop(s);
 			if (!(arg1 = scanner_scan(s, L':', 0))) {
@@ -309,7 +309,7 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 				return NULL;
 			}
 			scanner_pop(s);
-			return trafo_create(idx, wcsdup(arg1), wcsdup(arg2), apply_ifelse);
+			return trafo_create(idx, arg1, arg2, apply_ifelse);
 		case L'-':
 			scanner_pop(s);
 		default:
@@ -318,7 +318,7 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 				return NULL;
 			}
 			scanner_pop(s);
-			return trafo_create(idx, wcsdup(arg1), NULL, apply_else);
+			return trafo_create(idx, arg1, NULL, apply_else);
 	}
 }
 
