@@ -221,17 +221,14 @@ wchar_t *scanner_scan(scanner_t *s, wchar_t c, int scan_to_end)
 	return NULL;
 }
 
-// on success, ww should point at the last consumed character
 static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 {
 	/* printf("parse_transform %S\n", w); */
-	int idx = 0, done;
-	int buf_ind = 0;
-	int simple = 1;
+	wchar_t w, *arg1, *arg2;
+	int idx = 0, simple = 1;
+	apply_fun f;
 
-	wchar_t *arg1, *arg2;
-
-	wchar_t w = scanner_peek(s);
+	w = scanner_peek(s);
 	if (w != L'$') {
 		snprintf(err, err_len, "malformed placeholder: expected '$', found %c", w);
 		return NULL;
@@ -249,7 +246,7 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 		return NULL;
 	}
 
-	while ((w = scanner_peek(s)) && iswdigit(w)) {
+	while (iswdigit(scanner_peek(s))) {
 		idx = idx * 10 + (scanner_pop(s) - '0');
 	}
 	if (simple) {
@@ -269,7 +266,6 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 			return NULL;
 	}
 
-	apply_fun f;
 	switch (w = scanner_peek(s)) {
 		case L'/':
 			if (haswprefix(s->pos, L"/upcase}")) {
@@ -357,7 +353,7 @@ format_t *format_create(const char *format, char *err, int err_len)
 	memset(&state, 0, sizeof state);
 	const int l = mbsrtowcs(NULL, &format, 0, &state);
 	wchar_t wformat[l+1], buf[l+1];
-	mbsrtowcs(wformat, &format, l+1, &state);
+	mbsrtowcs(wformat, &format, l + 1, &state);
 
 	scanner_t s = {
 		.str = wformat,
@@ -367,11 +363,11 @@ format_t *format_create(const char *format, char *err, int err_len)
 	};
 
 	struct format_t *fmt = malloc(sizeof(*fmt));
-	fmt->trafos = malloc(sizeof(struct trafo_t*) * 4);
+	fmt->trafos = malloc(sizeof(*fmt->trafos) * 4);
 	fmt->size = 0;
 	int capacity = 4;
 
-	while (1) {
+	while (scanner_peek(&s)) {
 		if ((str = scanner_scan(&s, L'$', 1)) && str[0] != L'\0') {
 			if (fmt->size + 1 >= capacity) {
 				capacity *= 2;
@@ -379,15 +375,12 @@ format_t *format_create(const char *format, char *err, int err_len)
 			}
 			fmt->trafos[fmt->size++] = trafo_create(0, str, NULL, apply_const);
 		}
-		/* TODO: reset scanner buf here? or are the contents guaranteed to fit? (on 2021-09-01) */
 		if (scanner_peek(&s)) {
-			if (NULL == (t = parse_transform(&s, err, err_len))) {
+			if (!(t = parse_transform(&s, err, err_len))) {
 				format_destroy(fmt);
 				return NULL;
 			}
 			fmt->trafos[fmt->size++] = t;
-		} else {
-			break;
 		}
 	}
 	return fmt;
