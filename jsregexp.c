@@ -35,7 +35,7 @@ static int transform_closure(lua_State *L)
 	input_len = strlen((char*)input);
 
 	str_builder_clear(sb);
-	for (cindex = 0;
+	for (cindex = nmatch = 0;
 			lre_exec(capture, r->bc, input, cindex, input_len, 0, NULL) == 1;
 			) {
 		nmatch++;
