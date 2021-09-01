@@ -185,161 +185,140 @@ static void apply_ifelse(const struct trafo_t *t, str_builder_t *sb, char **capt
 	}
 }
 
-// on success, ww should point at the last consumed character
-static struct trafo_t *parse_transform(const wchar_t **ww,
-		wchar_t *buf, char *err, int err_len)
+typedef struct scanner_t {
+	const wchar_t *str;
+	const wchar_t *pos;
+	wchar_t *buf;
+	int buf_ind;
+} scanner_t;
+
+static wchar_t scanner_peek(scanner_t *s)
+{
+	return *s->pos;
+}
+
+static wchar_t scanner_pop(scanner_t *s)
+{
+	return *s->pos++;
+}
+
+// If scan_to_end is not zero, then reaching L'\0' is not an error, otherwise
+// NULL is returned.
+static wchar_t *scanner_scan(scanner_t *s, wchar_t c, int scan_to_end)
+{
+	wchar_t * const res = s->buf+s->buf_ind;
+	wchar_t w;
+	while ((w = scanner_peek(s))) {
+		if (w == c) {
+			s->buf[s->buf_ind++] = L'\0';
+			return res;
+		}
+		if (w == L'\\')
+			scanner_pop(s);
+		s->buf[s->buf_ind++] = scanner_pop(s);
+	}
+	if (scan_to_end) {
+		s->buf[s->buf_ind++] = L'\0';
+		return res;
+	}
+	return NULL;
+}
+
+static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 {
 	/* printf("parse_transform %S\n", w); */
-	int idx = 0, done;
-	const wchar_t *w = *ww;
-	int buf_ind = 0;
+	wchar_t w, *arg1, *arg2;
+	int idx = 0, simple = 1;
+	apply_fun f;
 
-	int simple = 0;
-	if (isdigit(*w)) {
-		simple = 1;
-	} else if (*w == L'{') {
-		w++;
-	}
-
-	if (!isdigit(*w)) {
-		snprintf(err, err_len, "malformed placeholder: expected number, found %c", *w);
+	if ((w = scanner_pop(s)) != L'$') {
+		snprintf(err, err_len, "malformed placeholder: expected '$', found %c", w);
 		return NULL;
 	}
-	while (isdigit(*w)) {
-		idx = idx * 10 + (*w++ - '0');
+	if ((w = scanner_peek(s)) == L'{') {
+		scanner_pop(s);
+		simple = 0;
+		w = scanner_peek(s);
+	}
+	if (!iswdigit(w)) {
+		snprintf(err, err_len, "malformed placeholder: expected number or '{', found %c", w);
+		return NULL;
+	}
+
+	while (iswdigit(scanner_peek(s))) {
+		idx = idx * 10 + (scanner_pop(s) - '0');
 	}
 	if (simple) {
-		*ww = w - 1;
 		return trafo_create(idx, NULL, NULL, apply_group);
 	}
-	if (*w == L'}') {
-		*ww = w;
-		return trafo_create(idx, NULL, NULL, apply_group);
-	}
-	if (*w != L':') {
-		snprintf(err, err_len, "malformed placeholder: expected ':', found %c", *w);
-		return NULL;
-	}
-	switch (*(++w)) {
-		case L'/':
-			{
-				apply_fun f;
-				if (haswprefix(w, L"/upcase}")) {
-					*ww = w + wcslen(L"/upcase");
-					f = apply_upcase;
-				} else if (haswprefix(w, L"/downcase}")) {
-					*ww = w + wcslen(L"/downcase");
-					f = apply_downcase;
-				} else if (haswprefix(w, L"/capitalize}")) {
-					*ww = w + wcslen(L"/capitalize");
-					f = apply_capitalize;
-				} else if (haswprefix(w, L"/pascalcase}")) {
-					/* TODO:  (on 2021-08-29) */
-					*ww = w + wcslen(L"/pascalcase");
-					f = apply_group;
-				} else if (haswprefix(w, L"/camelcase}")) {
-					/* TODO:  (on 2021-08-29) */
-					*ww = w + wcslen(L"/camelcase");
-					f = apply_group;
-				} else {
-					snprintf(err, err_len, "malformed placeholder: unexpected transform %S", w+1);
-					return NULL;
-				}
-				return trafo_create(idx, NULL, NULL, f);
-			}
-		case L'+':
-			{
-				w++;
-				for (done = 0; !done && *w; ) {
-					switch (*w) {
-						case L'}':
-							done = 1;
-							break;
-						case L'\\':
-							if (!*(++w))
-								break;
-						default:
-							buf[buf_ind++] = *w++;
-					}
-				}
-				if (!done) {
-					snprintf(err, err_len, "malformed placeholder: missing '}'");
-					return NULL;
-				}
-				buf[buf_ind] = L'\0';
-				*ww = w;
-				return trafo_create(idx, wcsdup(buf), NULL, apply_if);
-			}
-		case L'?':
-			{
-				w++;
-				for (done = 0; !done && *w; ) {
-					switch (*w) {
-						case L':':
-							done = 1;
-							break;
-						case L'\\':
-							if (!*(++w))
-								break;
-						default:
-							buf[buf_ind++] = *w++;
-					}
-				}
-				if (!done) {
-					snprintf(err, err_len, "malformed placeholder: missing ':'");
-					return NULL;
-				}
 
-				buf[buf_ind++] = L'\0';
-				wchar_t *arg2 = buf + buf_ind;
-
-				w++;
-				for (done = 0; !done && *w; ) {
-					switch (*w) {
-						case L'}':
-							done = 1;
-							break;
-						case L'\\':
-							if (!*(++w))
-								break;
-						default:
-							buf[buf_ind++] = *w++;
-					}
-				}
-
-				if (!done) {
-					snprintf(err, err_len, "malformed placeholder: missing '}'");
-					return NULL;
-				}
-
-				buf[buf_ind] = L'\0';
-
-				*ww = w;
-				return trafo_create(idx, wcsdup(buf), wcsdup(arg2), apply_ifelse);
-			}
+	switch (w = scanner_peek(s)) {
+		case L'}':
+			scanner_pop(s);
+			return trafo_create(idx, NULL, NULL, apply_group);
+			break;
+		case L':':
+			scanner_pop(s);
+			break;
 		default:
-			if (*w == L'-') {
-				w++;
+			snprintf(err, err_len, "malformed placeholder: expected ':' or '}', found %c", w);
+			return NULL;
+	}
+
+	switch (w = scanner_peek(s)) {
+		case L'/':
+			if (haswprefix(s->pos, L"/upcase}")) {
+				s->pos += wcslen(L"/upcase}");
+				f = apply_upcase;
+			} else if (haswprefix(s->pos, L"/downcase}")) {
+				s->pos += wcslen(L"/downcase}");
+				f = apply_downcase;
+			} else if (haswprefix(s->pos, L"/capitalize}")) {
+				s->pos += wcslen(L"/capitalize}");
+				f = apply_capitalize;
+			} else if (haswprefix(s->pos, L"/pascalcase}")) {
+				/* TODO:  (on 2021-08-29) */
+				s->pos += wcslen(L"/pascalcase}");
+				f = apply_group;
+			} else if (haswprefix(s->pos, L"/camelcase}")) {
+				/* TODO:  (on 2021-08-29) */
+				s->pos += wcslen(L"/camelcase}");
+				f = apply_group;
+			} else {
+				snprintf(err, err_len, "malformed placeholder: unexpected transform %S", s->pos);
+				return NULL;
 			}
-			for (done = 0; !done && *w; ) {
-				switch (*w) {
-					case L'}':
-						done = 1;
-						break;
-					case L'\\':
-						if (!*(++w))
-							break;
-					default:
-						buf[buf_ind++] = *w++;
-				}
-			}
-			if (!done) {
+			return trafo_create(idx, NULL, NULL, f);
+		case L'+':
+			scanner_pop(s);
+			if (!(arg1 = scanner_scan(s, L'}', 0))) {
 				snprintf(err, err_len, "malformed placeholder: missing '}'");
 				return NULL;
 			}
-			buf[buf_ind] = L'\0';
-			*ww = w;
-			return trafo_create(idx, wcsdup(buf), NULL, apply_else);
+			scanner_pop(s);
+			return trafo_create(idx, arg1, NULL, apply_if);
+		case L'?':
+			scanner_pop(s);
+			if (!(arg1 = scanner_scan(s, L':', 0))) {
+				snprintf(err, err_len, "malformed placeholder: missing ':'");
+				return NULL;
+			}
+			scanner_pop(s);
+			if (!(arg2 = scanner_scan(s, L'}', 0))) {
+				snprintf(err, err_len, "malformed placeholder: missing '}'");
+				return NULL;
+			}
+			scanner_pop(s);
+			return trafo_create(idx, arg1, arg2, apply_ifelse);
+		case L'-':
+			scanner_pop(s);
+		default:
+			if (!(arg1 = scanner_scan(s, L'}', 0))) {
+				snprintf(err, err_len, "malformed placeholder: missing '}'");
+				return NULL;
+			}
+			scanner_pop(s);
+			return trafo_create(idx, arg1, NULL, apply_else);
 	}
 }
 
@@ -366,64 +345,42 @@ void format_apply(struct format_t *fmt, str_builder_t *sb, char **captures, int 
 format_t *format_create(const char *format, char *err, int err_len)
 {
 	/* printf("format_create %s\n", format); */
-	const wchar_t *w;
 	struct trafo_t *t;
 	mbstate_t state;
+	wchar_t *str;
 
 	memset(&state, 0, sizeof state);
 	const int l = mbsrtowcs(NULL, &format, 0, &state);
 	wchar_t wformat[l+1], buf[l+1];
-	mbsrtowcs(wformat, &format, l+1, &state);
+	mbsrtowcs(wformat, &format, l + 1, &state);
 
-	int buf_ind = 0;
+	scanner_t s = {
+		.str = wformat,
+		.pos = wformat,
+		.buf = buf,
+		.buf_ind = 0,
+	};
 
 	struct format_t *fmt = malloc(sizeof(*fmt));
-	fmt->trafos = malloc(sizeof(struct trafo_t*) * 4);
+	fmt->trafos = malloc(sizeof(*fmt->trafos) * 4);
 	fmt->size = 0;
 	int capacity = 4;
-	/* printf("%S\n", wformat); */
 
-	for (w = wformat; *w; w++) {
-		switch (*w) {
-			case L'$':
-				// make space for (at least) two more
-				if (fmt->size + 1 >= capacity) {
-					capacity *= 2;
-					fmt->trafos = realloc(fmt->trafos, sizeof(*fmt->trafos)*capacity);
-				}
-
-				if (buf_ind > 0) {
-					buf[buf_ind] = L'\0';
-					fmt->trafos[fmt->size++] = trafo_create(0, buf, NULL, apply_const);
-					buf[0] = L'\0';
-					buf_ind = 0;
-				}
-
-				w++;
-				if (NULL == (t = parse_transform(&w, buf, err, err_len))) {
-					format_destroy(fmt);
-					return NULL;
-				}
-				fmt->trafos[fmt->size++] = t;
-				break;
-			case L'\\':
-				if (!*(++w))
-					break; /* ignore \ at the very end? */
-			default:
-				/* printf("%C\n", *w); */
-				buf[buf_ind++] = *w;
+	while (scanner_peek(&s)) {
+		if ((str = scanner_scan(&s, L'$', 1)) && str[0] != L'\0') {
+			if (fmt->size + 1 >= capacity) {
+				capacity *= 2;
+				fmt->trafos = realloc(fmt->trafos, sizeof(*fmt->trafos)*capacity);
+			}
+			fmt->trafos[fmt->size++] = trafo_create(0, str, NULL, apply_const);
 		}
-	}
-
-	if (buf_ind > 0) {
-		if (fmt->size >= capacity) {
-			capacity++;
-			fmt->trafos = realloc(fmt->trafos, sizeof(*fmt->trafos)*capacity);
+		if (scanner_peek(&s)) {
+			if (!(t = parse_transform(&s, err, err_len))) {
+				format_destroy(fmt);
+				return NULL;
+			}
+			fmt->trafos[fmt->size++] = t;
 		}
-
-		buf[buf_ind] = L'\0';
-		/* printf("%S\n", buf); */
-		fmt->trafos[fmt->size++] = trafo_create(0, buf, NULL, apply_const);
 	}
 	return fmt;
 }
