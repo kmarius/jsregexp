@@ -2,7 +2,7 @@ package = "jsregexp"
 version = "0.0.1-1"
 source = {
 	url = "git://github.com/kmarius/jsregexp.git",
-	branch = "trafo"
+	branch = "master"
 }
 description = {
 	summary = "javascript (ECMA19) regex for lua(snip)",
