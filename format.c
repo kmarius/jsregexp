@@ -31,6 +31,8 @@ struct trafo_t {
 struct trafo_t *trafo_create(int idx, const wchar_t *arg1, const wchar_t *arg2, apply_fun apply)
 {
 	struct trafo_t *t = malloc(sizeof(*t));
+	if (!t)
+		return NULL;
 	t->idx = idx;
 	t->arg1 = arg1 ? wcsdup(arg1) : NULL;
 	t->arg2 = arg2 ? wcsdup(arg2) : NULL;
@@ -40,11 +42,11 @@ struct trafo_t *trafo_create(int idx, const wchar_t *arg1, const wchar_t *arg2, 
 
 static void trafo_destroy(struct trafo_t *t)
 {
-	if (t) {
-		free(t->arg1);
-		free(t->arg2);
-		free(t);
-	}
+	if (!t)
+		return;
+	free(t->arg1);
+	free(t->arg2);
+	free(t);
 }
 
 static inline void trafo_apply(struct trafo_t *t, str_builder_t *sb, char **captures, int capture_count)
@@ -230,6 +232,7 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 	wchar_t w, *arg1, *arg2;
 	int idx = 0, simple = 1;
 	apply_fun f;
+	struct trafo_t *res;
 
 	if ((w = scanner_pop(s)) != L'$') {
 		snprintf(err, err_len, "malformed placeholder: expected '$', found %c", w);
@@ -249,14 +252,15 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 		idx = idx * 10 + (scanner_pop(s) - '0');
 	}
 	if (simple) {
-		return trafo_create(idx, NULL, NULL, apply_group);
+		res = trafo_create(idx, NULL, NULL, apply_group);
+		goto ret;
 	}
 
 	switch (w = scanner_peek(s)) {
 		case L'}':
 			scanner_pop(s);
-			return trafo_create(idx, NULL, NULL, apply_group);
-			break;
+			res = trafo_create(idx, NULL, NULL, apply_group);
+			goto ret;
 		case L':':
 			scanner_pop(s);
 			break;
@@ -288,7 +292,8 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 				snprintf(err, err_len, "malformed placeholder: unexpected transform %S", s->pos);
 				return NULL;
 			}
-			return trafo_create(idx, NULL, NULL, f);
+			res = trafo_create(idx, NULL, NULL, f);
+			break;
 		case L'+':
 			scanner_pop(s);
 			if (!(arg1 = scanner_scan(s, L'}', 0))) {
@@ -296,7 +301,8 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 				return NULL;
 			}
 			scanner_pop(s);
-			return trafo_create(idx, arg1, NULL, apply_if);
+			res = trafo_create(idx, arg1, NULL, apply_if);
+			break;
 		case L'?':
 			scanner_pop(s);
 			if (!(arg1 = scanner_scan(s, L':', 0))) {
@@ -309,7 +315,8 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 				return NULL;
 			}
 			scanner_pop(s);
-			return trafo_create(idx, arg1, arg2, apply_ifelse);
+			res = trafo_create(idx, arg1, arg2, apply_ifelse);
+			break;
 		case L'-':
 			scanner_pop(s);
 		default:
@@ -318,20 +325,27 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 				return NULL;
 			}
 			scanner_pop(s);
-			return trafo_create(idx, arg1, NULL, apply_else);
+			res = trafo_create(idx, arg1, NULL, apply_else);
 	}
+
+ret:
+	if (!res) {
+		snprintf(err, err_len, "format_create: malloc failed");
+		return NULL;
+	}
+	return res;
 }
 
 void format_destroy(struct format_t *fmt)
 {
 	int i;
-	if (fmt) {
-		for (i = 0; i < fmt->size; i++) {
-			trafo_destroy(fmt->trafos[i]);
-		}
-		free(fmt->trafos);
-		free(fmt);
+	if (!fmt)
+		return;
+	for (i = 0; i < fmt->size; i++) {
+		trafo_destroy(fmt->trafos[i]);
 	}
+	free(fmt->trafos);
+	free(fmt);
 }
 
 void format_apply(struct format_t *fmt, str_builder_t *sb, char **captures, int capture_count)
@@ -362,7 +376,17 @@ format_t *format_create(const char *format, char *err, int err_len)
 	};
 
 	struct format_t *fmt = malloc(sizeof(*fmt));
+	if (!fmt) {
+		snprintf(err, err_len, "format_create: malloc failed");
+		return NULL;
+	}
+
 	fmt->trafos = malloc(sizeof(*fmt->trafos) * 4);
+	if (!fmt->trafos) {
+		snprintf(err, err_len, "format_create: malloc failed");
+		free(fmt);
+		return NULL;
+	}
 	fmt->size = 0;
 	int capacity = 4;
 
@@ -370,9 +394,20 @@ format_t *format_create(const char *format, char *err, int err_len)
 		if ((str = scanner_scan(&s, L'$', 1)) && str[0] != L'\0') {
 			if (fmt->size + 1 >= capacity) {
 				capacity *= 2;
-				fmt->trafos = realloc(fmt->trafos, sizeof(*fmt->trafos)*capacity);
+				struct trafo_t **tmp = realloc(fmt->trafos, sizeof(*tmp)*capacity);
+				if (!tmp) {
+					snprintf(err, err_len, "format_create: realloc failed");
+					format_destroy(fmt);
+					return NULL;
+				}
+				fmt->trafos = tmp;
 			}
-			fmt->trafos[fmt->size++] = trafo_create(0, str, NULL, apply_const);
+			if (!(t = trafo_create(0, str, NULL, apply_const))) {
+				format_destroy(fmt);
+				snprintf(err, err_len, "format_create: malloc failed");
+				return NULL;
+			}
+			fmt->trafos[fmt->size++] = t;
 		}
 		if (scanner_peek(&s)) {
 			if (!(t = parse_transform(&s, err, err_len))) {
