@@ -52,6 +52,11 @@ test("", "(\\s)|(\\w*)", "${1:+_}${2:/upcase}", "g", "")
 test("shouldn't hang", "(\\w*)|shouldn't hang", "$1", "g", "shouldn't hang")
 test("shouldn't hang", "(\\s*)|shouldn't hang", "$1", "g", "shouldn't hang")
 
+test("ö", "ö", "", "", "")
+test("äöü", "a", "", "", "äöü")
+test("äöü", "(.*)", "${1:/upcase}", "", "ÄÖÜ")
+test("ÄÖÜ", "(.*)", "${1:/downcase}", "", "äöü")
+
 test("dummy", "c", "", "", "dummy")
 test("dummy", "c", "", "g", "dummy")
 test("dummy", "d", "", "", "ummy")
