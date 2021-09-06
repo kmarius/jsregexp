@@ -61,7 +61,7 @@ static int transform_closure(lua_State *L)
 			break;
 		}
 	}
-	if (nmatch == 0) {
+	if (nmatch == 0 && format_has_else(r->fmt)) {
 		// Trigger 'else' part of ${N:?*:*} and ${N:-*} placeholders
 		format_apply(r->fmt, sb, NULL, 0);
 	} else {

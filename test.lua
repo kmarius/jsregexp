@@ -52,6 +52,13 @@ test("", "(\\s)|(\\w*)", "${1:+_}${2:/upcase}", "g", "")
 test("shouldn't hang", "(\\w*)|shouldn't hang", "$1", "g", "shouldn't hang")
 test("shouldn't hang", "(\\s*)|shouldn't hang", "$1", "g", "shouldn't hang")
 
+test("dummy", "c", "", "", "dummy")
+test("dummy", "c", "", "g", "dummy")
+test("dummy", "d", "", "", "ummy")
+test("dummy", "d", "b", "", "bummy")
+test("dummy", "m", "_", "", "du_my")
+test("dummy", "m", "_", "g", "du__y")
+
 test("dummy", "(.)", "${112837649182736541987325418976325417653120835641027}", "", "ummy")
 test("dummy", "(.)", "${20}", "", "ummy")
 test("dummy", "(.)", "$1", "", "dummy")

@@ -17,6 +17,7 @@
 struct format_t {
 	struct trafo_t **trafos;
 	int size;
+	int has_else;
 };
 
 typedef void (*apply_fun)(const struct trafo_t*, str_builder_t*, char**, int);
@@ -202,6 +203,11 @@ static wchar_t scanner_pop(scanner_t *s)
 	return *s->pos++;
 }
 
+void scanner_seek(scanner_t *s, wchar_t c)
+{
+	while (scanner_pop(s) != c);
+}
+
 // If scan_to_end is not zero, then reaching L'\0' is not an error, otherwise
 // NULL is returned.
 static wchar_t *scanner_scan(scanner_t *s, wchar_t c, int scan_to_end)
@@ -268,26 +274,22 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 	switch (w = scanner_peek(s)) {
 		case L'/':
 			if (haswprefix(s->pos, L"/upcase}")) {
-				s->pos += wcslen(L"/upcase}");
 				f = apply_upcase;
 			} else if (haswprefix(s->pos, L"/downcase}")) {
-				s->pos += wcslen(L"/downcase}");
 				f = apply_downcase;
 			} else if (haswprefix(s->pos, L"/capitalize}")) {
-				s->pos += wcslen(L"/capitalize}");
 				f = apply_capitalize;
 			} else if (haswprefix(s->pos, L"/pascalcase}")) {
 				/* TODO:  (on 2021-08-29) */
-				s->pos += wcslen(L"/pascalcase}");
 				f = apply_group;
 			} else if (haswprefix(s->pos, L"/camelcase}")) {
 				/* TODO:  (on 2021-08-29) */
-				s->pos += wcslen(L"/camelcase}");
 				f = apply_group;
 			} else {
 				snprintf(err, err_len, "malformed placeholder: unexpected transform %S", s->pos);
 				return NULL;
 			}
+			scanner_seek(s, L'}');
 			return trafo_create(idx, NULL, NULL, f);
 		case L'+':
 			scanner_pop(s);
@@ -334,6 +336,11 @@ void format_destroy(struct format_t *fmt)
 	}
 }
 
+int format_has_else(struct format_t *fmt)
+{
+	return fmt->has_else;
+}
+
 void format_apply(struct format_t *fmt, str_builder_t *sb, char **captures, int capture_count)
 {
 	int i;
@@ -364,6 +371,7 @@ format_t *format_create(const char *format, char *err, int err_len)
 	struct format_t *fmt = malloc(sizeof(*fmt));
 	fmt->trafos = malloc(sizeof(*fmt->trafos) * 4);
 	fmt->size = 0;
+	fmt->has_else = 0;
 	int capacity = 4;
 
 	while (scanner_peek(&s)) {
@@ -378,6 +386,9 @@ format_t *format_create(const char *format, char *err, int err_len)
 			if (!(t = parse_transform(&s, err, err_len))) {
 				format_destroy(fmt);
 				return NULL;
+			}
+			if (t->apply == apply_else || t->apply == apply_ifelse) {
+				fmt->has_else = 1;
 			}
 			fmt->trafos[fmt->size++] = t;
 		}
