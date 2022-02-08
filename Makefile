@@ -4,17 +4,17 @@ OBJECTS = $(SOURCES:%.c=%.o)
 INCLUDE = -I/usr/include/lua5.1
 LIBOPTS = -shared -llua5.1
 FLAGS = -fpic
-CXX = gcc
+CC = gcc
 
 .PHONY: all clean
 
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CXX) $(FLAGS) $(LIBOPTS) $^ -L./ -o $@
+	$(CC) $(FLAGS) $(LIBOPTS) $^ -L./ -o $@
 
 %.o: %.c
-	$(CXX) $(FLAGS) -c $^ $(INCLUDE) -o $@
+	$(CC) $(FLAGS) -c $^ $(INCLUDE) -o $@
 
 check:
 	lua5.1 test.lua
