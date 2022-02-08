@@ -15,43 +15,43 @@
 #define CAPTURE_END(cap, i) (cap)[2*i+1]
 #define CAPTURE_LEN(cap, i) (cap)[2*i+1] - (cap)[2*i]
 
-struct format_t {
-	struct trafo_t **trafos;
+struct Trafo {
+	struct Format **fmts;
 	int size;
 	bool has_else;
 };
 
-typedef void (*apply_fun)(const struct trafo_t*, str_builder_t*, char**, int);
+typedef void (*apply_fun)(const struct Format*, str_builder_t*, char**, int);
 
-struct trafo_t {
+struct Format {
 	int idx;
 	wchar_t *arg1;
 	wchar_t *arg2;
 	apply_fun apply;
 };
 
-struct trafo_t *trafo_create(int idx, const wchar_t *arg1, const wchar_t *arg2, apply_fun apply)
+struct Format *format_create(int idx, const wchar_t *arg1, const wchar_t *arg2, apply_fun apply)
 {
-	struct trafo_t *t = malloc(sizeof(*t));
-	t->idx = idx;
-	t->arg1 = arg1 ? wcsdup(arg1) : NULL;
-	t->arg2 = arg2 ? wcsdup(arg2) : NULL;
-	t->apply = apply;
-	return t;
+	struct Format *f = malloc(sizeof(*f));
+	f->idx = idx;
+	f->arg1 = arg1 ? wcsdup(arg1) : NULL;
+	f->arg2 = arg2 ? wcsdup(arg2) : NULL;
+	f->apply = apply;
+	return f;
 }
 
-static void trafo_destroy(struct trafo_t *t)
+static void format_destroy(struct Format *f)
 {
-	if (t) {
-		free(t->arg1);
-		free(t->arg2);
-		free(t);
-	}
+	if (!f)
+		return;
+	free(f->arg1);
+	free(f->arg2);
+	free(f);
 }
 
-static inline void trafo_apply(struct trafo_t *t, str_builder_t *sb, char **captures, int capture_count)
+static inline void format_apply(struct Format *f, str_builder_t *sb, char **captures, int capture_count)
 {
-	t->apply(t, sb, captures, capture_count);
+	f->apply(f, sb, captures, capture_count);
 }
 
 static int haswprefix(const wchar_t *string, const wchar_t *prefix)
@@ -65,14 +65,14 @@ static int haswprefix(const wchar_t *string, const wchar_t *prefix)
 }
 
 // normal text
-static void apply_const(const struct trafo_t *t, str_builder_t *sb, char **captures, int capture_count)
+static void apply_const(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
 {
 	str_builder_add_wstr(sb, t->arg1, 0);
 }
 
 // ${idx}
 // $idx
-static void apply_group(const struct trafo_t *t, str_builder_t *sb, char **captures, int capture_count)
+static void apply_group(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
 {
 	if (t->idx < capture_count) {
 		if (CAPTURE(captures, t->idx) && CAPTURE_LEN(captures, t->idx) > 0) {
@@ -82,7 +82,7 @@ static void apply_group(const struct trafo_t *t, str_builder_t *sb, char **captu
 }
 
 // ${idx:/upcase}
-static void apply_upcase(const struct trafo_t *t, str_builder_t *sb, char **captures, int capture_count)
+static void apply_upcase(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
 {
 	char *s;
 	wchar_t wc;
@@ -102,7 +102,7 @@ static void apply_upcase(const struct trafo_t *t, str_builder_t *sb, char **capt
 }
 
 // ${idx:/downcase}
-static void apply_downcase(const struct trafo_t *t, str_builder_t *sb, char **captures, int capture_count)
+static void apply_downcase(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
 {
 	char *s;
 	wchar_t wc;
@@ -122,7 +122,7 @@ static void apply_downcase(const struct trafo_t *t, str_builder_t *sb, char **ca
 }
 
 // ${idx:/capitalize}
-static void apply_capitalize(const struct trafo_t *t, str_builder_t *sb, char **captures, int capture_count)
+static void apply_capitalize(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
 {
 	char *s;
 	wchar_t wc;
@@ -153,7 +153,7 @@ static void apply_capitalize(const struct trafo_t *t, str_builder_t *sb, char **
 }
 
 // ${idx:+t->arg1}
-static void apply_if(const struct trafo_t *t, str_builder_t *sb, char **captures, int capture_count)
+static void apply_if(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
 {
 	if (t->idx < capture_count
 			&& CAPTURE(captures, t->idx)
@@ -164,7 +164,7 @@ static void apply_if(const struct trafo_t *t, str_builder_t *sb, char **captures
 
 // ${idx:-t->arg1}
 // ${idx:t->arg1}
-static void apply_else(const struct trafo_t *t, str_builder_t *sb, char **captures, int capture_count)
+static void apply_else(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
 {
 	if (t->idx < capture_count
 			&& CAPTURE(captures, t->idx)
@@ -176,7 +176,7 @@ static void apply_else(const struct trafo_t *t, str_builder_t *sb, char **captur
 }
 
 // ${idx:?t->arg1:t->arg2}
-static void apply_ifelse(const struct trafo_t *t, str_builder_t *sb, char **captures, int capture_count)
+static void apply_ifelse(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
 {
 	if (t->idx < capture_count
 			&& CAPTURE(captures, t->idx)
@@ -187,31 +187,31 @@ static void apply_ifelse(const struct trafo_t *t, str_builder_t *sb, char **capt
 	}
 }
 
-typedef struct scanner_t {
+struct scanner {
 	const wchar_t *str;
 	const wchar_t *pos;
 	wchar_t *buf;
 	int buf_ind;
-} scanner_t;
+};
 
-static wchar_t scanner_peek(scanner_t *s)
+static wchar_t scanner_peek(struct scanner *s)
 {
 	return *s->pos;
 }
 
-static wchar_t scanner_pop(scanner_t *s)
+static wchar_t scanner_pop(struct scanner *s)
 {
 	return *s->pos++;
 }
 
-void scanner_seek(scanner_t *s, wchar_t c)
+void scanner_seek(struct scanner *s, wchar_t c)
 {
 	while (scanner_pop(s) != c);
 }
 
 // If scan_to_end is not zero, then reaching L'\0' is not an error, otherwise
 // NULL is returned.
-static wchar_t *scanner_scan(scanner_t *s, wchar_t c, int scan_to_end)
+static wchar_t *scanner_scan(struct scanner *s, wchar_t c, int scan_to_end)
 {
 	wchar_t * const res = s->buf+s->buf_ind;
 	wchar_t w;
@@ -231,7 +231,7 @@ static wchar_t *scanner_scan(scanner_t *s, wchar_t c, int scan_to_end)
 	return NULL;
 }
 
-static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
+static struct Format *parse_transform(struct scanner *s, char *err, int err_len)
 {
 	/* printf("parse_transform %S\n", w); */
 	wchar_t w, *arg1, *arg2;
@@ -256,13 +256,13 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 		idx = idx * 10 + (scanner_pop(s) - '0');
 	}
 	if (simple) {
-		return trafo_create(idx, NULL, NULL, apply_group);
+		return format_create(idx, NULL, NULL, apply_group);
 	}
 
 	switch (w = scanner_peek(s)) {
 		case L'}':
 			scanner_pop(s);
-			return trafo_create(idx, NULL, NULL, apply_group);
+			return format_create(idx, NULL, NULL, apply_group);
 			break;
 		case L':':
 			scanner_pop(s);
@@ -291,7 +291,7 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 				return NULL;
 			}
 			scanner_seek(s, L'}');
-			return trafo_create(idx, NULL, NULL, f);
+			return format_create(idx, NULL, NULL, f);
 		case L'+':
 			scanner_pop(s);
 			if (!(arg1 = scanner_scan(s, L'}', 0))) {
@@ -299,7 +299,7 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 				return NULL;
 			}
 			scanner_pop(s);
-			return trafo_create(idx, arg1, NULL, apply_if);
+			return format_create(idx, arg1, NULL, apply_if);
 		case L'?':
 			scanner_pop(s);
 			if (!(arg1 = scanner_scan(s, L':', 0))) {
@@ -312,7 +312,7 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 				return NULL;
 			}
 			scanner_pop(s);
-			return trafo_create(idx, arg1, arg2, apply_ifelse);
+			return format_create(idx, arg1, arg2, apply_ifelse);
 		case L'-':
 			scanner_pop(s);
 		default:
@@ -321,39 +321,39 @@ static struct trafo_t *parse_transform(scanner_t *s, char *err, int err_len)
 				return NULL;
 			}
 			scanner_pop(s);
-			return trafo_create(idx, arg1, NULL, apply_else);
+			return format_create(idx, arg1, NULL, apply_else);
 	}
 }
 
-void format_destroy(struct format_t *fmt)
+void trafo_destroy(struct Trafo *fmt)
 {
 	int i;
 	if (fmt) {
 		for (i = 0; i < fmt->size; i++) {
-			trafo_destroy(fmt->trafos[i]);
+			format_destroy(fmt->fmts[i]);
 		}
-		free(fmt->trafos);
+		free(fmt->fmts);
 		free(fmt);
 	}
 }
 
-bool format_has_else(struct format_t *fmt)
+bool trafo_has_else(struct Trafo *fmt)
 {
 	return fmt->has_else;
 }
 
-void format_apply(struct format_t *fmt, str_builder_t *sb, char **captures, int capture_count)
+void trafo_apply(struct Trafo *fmt, str_builder_t *sb, char **captures, int capture_count)
 {
 	int i;
 	for (i = 0; i < fmt->size; i++) {
-		trafo_apply(fmt->trafos[i], sb, captures, capture_count);
+		format_apply(fmt->fmts[i], sb, captures, capture_count);
 	}
 }
 
-format_t *format_create(const char *format, char *err, int err_len)
+Trafo *trafo_create(const char *format, char *err, int err_len)
 {
 	/* printf("format_create %s\n", format); */
-	struct trafo_t *t;
+	struct Format *t;
 	mbstate_t state;
 	wchar_t *str;
 
@@ -362,15 +362,15 @@ format_t *format_create(const char *format, char *err, int err_len)
 	wchar_t wformat[l+1], buf[l+1];
 	mbsrtowcs(wformat, &format, l + 1, &state);
 
-	scanner_t s = {
+	struct scanner s = {
 		.str = wformat,
 		.pos = wformat,
 		.buf = buf,
 		.buf_ind = 0,
 	};
 
-	struct format_t *fmt = malloc(sizeof(*fmt));
-	fmt->trafos = malloc(sizeof(*fmt->trafos) * 4);
+	struct Trafo *fmt = malloc(sizeof(*fmt));
+	fmt->fmts = malloc(sizeof(*fmt->fmts) * 4);
 	fmt->size = 0;
 	fmt->has_else = 0;
 	int capacity = 4;
@@ -379,19 +379,19 @@ format_t *format_create(const char *format, char *err, int err_len)
 		if ((str = scanner_scan(&s, L'$', 1)) && str[0] != L'\0') {
 			if (fmt->size + 1 >= capacity) {
 				capacity *= 2;
-				fmt->trafos = realloc(fmt->trafos, sizeof(*fmt->trafos)*capacity);
+				fmt->fmts = realloc(fmt->fmts, sizeof(*fmt->fmts)*capacity);
 			}
-			fmt->trafos[fmt->size++] = trafo_create(0, str, NULL, apply_const);
+			fmt->fmts[fmt->size++] = format_create(0, str, NULL, apply_const);
 		}
 		if (scanner_peek(&s)) {
 			if (!(t = parse_transform(&s, err, err_len))) {
-				format_destroy(fmt);
+				trafo_destroy(fmt);
 				return NULL;
 			}
 			if (t->apply == apply_else || t->apply == apply_ifelse) {
 				fmt->has_else = 1;
 			}
-			fmt->trafos[fmt->size++] = t;
+			fmt->fmts[fmt->size++] = t;
 		}
 	}
 	return fmt;

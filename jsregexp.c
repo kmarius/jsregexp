@@ -13,9 +13,9 @@
 
 #define CAPTURE_COUNT_MAX 255 /* from libregexp.c */
 
-struct replacer_t {
+struct replacer {
 	uint8_t *bc;
-	format_t *fmt;
+	Trafo *trafo;
 };
 
 static str_builder_t *sb;
@@ -25,7 +25,7 @@ static int transform_closure(lua_State *L)
 	int capture_count, global, input_len, cindex, nmatch;
 	uint8_t *capture[CAPTURE_COUNT_MAX * 2];
 	const uint8_t *input;
-	struct replacer_t *r;
+	struct replacer *r;
 
 	r = lua_touserdata(L, lua_upvalueindex(1));
 	global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
@@ -44,7 +44,7 @@ static int transform_closure(lua_State *L)
 			str_builder_add_str(sb, (char*)input+cindex, capture[0]-input-cindex);
 		}
 
-		format_apply(r->fmt, sb, (char**)capture, capture_count);
+		trafo_apply(r->trafo, sb, (char**)capture, capture_count);
 
 		cindex = capture[1] - input;
 
@@ -61,9 +61,9 @@ static int transform_closure(lua_State *L)
 			break;
 		}
 	}
-	if (nmatch == 0 && format_has_else(r->fmt)) {
+	if (nmatch == 0 && trafo_has_else(r->trafo)) {
 		// Trigger 'else' part of ${N:?*:*} and ${N:-*} placeholders
-		format_apply(r->fmt, sb, NULL, 0);
+		trafo_apply(r->trafo, sb, NULL, 0);
 	} else {
 		str_builder_add_str(sb, (char*)input+cindex, 0);
 	}
@@ -74,21 +74,21 @@ static int transform_closure(lua_State *L)
 
 static int transform_gc(lua_State *L)
 {
-	struct replacer_t *r;
+	struct replacer *r;
 	r = lua_touserdata(L, 1);
 	free(r->bc);
-	format_destroy(r->fmt);
+	trafo_destroy(r->trafo);
 	return 0;
 }
 
 static int jsregexp_transform(lua_State *L)
 {
 	uint8_t *bc;
-	struct replacer_t *ud;
+	struct replacer *ud;
 	int len, re_flags = 0;
 	char error_msg[64];
 	const char *regex;
-	format_t *fmt;
+	Trafo *trafo;
 
 	regex = luaL_checkstring(L, 1);
 
@@ -109,7 +109,7 @@ static int jsregexp_transform(lua_State *L)
 		lua_pushstring(L, error_msg);
 		return 2;
 	}
-	if (NULL == (fmt = format_create(luaL_checkstring(L, 2), error_msg, sizeof(error_msg)))) {
+	if (NULL == (trafo = trafo_create(luaL_checkstring(L, 2), error_msg, sizeof(error_msg)))) {
 		free(bc);
 		lua_pushnil(L);
 		lua_pushstring(L, error_msg);
@@ -118,7 +118,7 @@ static int jsregexp_transform(lua_State *L)
 
 	ud = lua_newuserdata(L, sizeof(*ud));
 	ud->bc = bc;
-	ud->fmt = fmt;
+	ud->trafo = trafo;
 
 	if (luaL_newmetatable(L, "jsregexp_transform")) {
 		lua_pushcfunction(L, transform_gc);
