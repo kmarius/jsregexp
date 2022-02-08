@@ -381,7 +381,8 @@ Trafo *trafo_create(const char *format, char *err, int err_len)
 
 	memset(&state, 0, sizeof(state));
 	const int l = mbsrtowcs(NULL, &format, 0, &state);
-	wchar_t wformat[l+1], buf[l+1];
+	wchar_t *wformat = calloc(l + 1, sizeof(wchar_t)) ;
+	wchar_t *buf = calloc(l + 1, sizeof(wchar_t));
 	mbsrtowcs(wformat, &format, l + 1, &state);
 
 	struct scanner s = {
@@ -407,7 +408,8 @@ Trafo *trafo_create(const char *format, char *err, int err_len)
 		if (scanner_peek(&s)) {
 			if (!(t = parse_transform(&s, err, err_len))) {
 				trafo_destroy(fmt);
-				return NULL;
+				fmt = NULL;
+				break;
 			}
 			if (t->apply == apply_else || t->apply == apply_ifelse) {
 				fmt->has_else = 1;
@@ -415,5 +417,7 @@ Trafo *trafo_create(const char *format, char *err, int err_len)
 			fmt->fmts[fmt->size++] = t;
 		}
 	}
+	free(buf);
+	free(wformat);
 	return fmt;
 }
