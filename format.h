@@ -7,9 +7,9 @@
 
 typedef struct Trafo Trafo;
 
-Trafo *trafo_create(const char *format, char *err, int err_len);
-void trafo_destroy(Trafo *fmt);
-void trafo_apply(Trafo *fmt, str_builder_t *sb, char **captures, int capture_count);
-bool trafo_has_else(struct Trafo *fmt);
+Trafo *trafo_create(const char *formats, char *err, int err_len);
+void trafo_destroy(Trafo *trafo);
+void trafo_apply(Trafo *trafo, str_builder_t *sb, char **captures, int capture_count);
+bool trafo_has_else(struct Trafo *trafo);
 
 #endif

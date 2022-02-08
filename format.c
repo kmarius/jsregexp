@@ -345,34 +345,34 @@ static struct Format *parse_transform(struct scanner *s, char *err, int err_len)
 }
 
 
-void trafo_destroy(struct Trafo *fmt)
+void trafo_destroy(struct Trafo *trafo)
 {
-	if (!fmt)
+	if (!trafo)
 		return;
 
-	for (int i = 0; i < fmt->size; i++) {
-		format_destroy(fmt->fmts[i]);
+	for (int i = 0; i < trafo->size; i++) {
+		format_destroy(trafo->fmts[i]);
 	}
-	free(fmt->fmts);
-	free(fmt);
+	free(trafo->fmts);
+	free(trafo);
 }
 
 
-bool trafo_has_else(struct Trafo *fmt)
+bool trafo_has_else(struct Trafo *trafo)
 {
-	return fmt->has_else;
+	return trafo->has_else;
 }
 
 
-void trafo_apply(struct Trafo *fmt, str_builder_t *sb, char **captures, int capture_count)
+void trafo_apply(struct Trafo *trafo, str_builder_t *sb, char **captures, int capture_count)
 {
-	for (int i = 0; i < fmt->size; i++) {
-		format_apply(fmt->fmts[i], sb, captures, capture_count);
+	for (int i = 0; i < trafo->size; i++) {
+		format_apply(trafo->fmts[i], sb, captures, capture_count);
 	}
 }
 
 
-Trafo *trafo_create(const char *format, char *err, int err_len)
+Trafo *trafo_create(const char *formats, char *err, int err_len)
 {
 	/* printf("format_create %s\n", format); */
 	struct Format *t;
@@ -380,10 +380,10 @@ Trafo *trafo_create(const char *format, char *err, int err_len)
 	wchar_t *str;
 
 	memset(&state, 0, sizeof(state));
-	const int l = mbsrtowcs(NULL, &format, 0, &state);
+	const int l = mbsrtowcs(NULL, &formats, 0, &state);
 	wchar_t *wformat = calloc(l + 1, sizeof(wchar_t)) ;
 	wchar_t *buf = calloc(l + 1, sizeof(wchar_t));
-	mbsrtowcs(wformat, &format, l + 1, &state);
+	mbsrtowcs(wformat, &formats, l + 1, &state);
 
 	struct scanner s = {
 		.str = wformat,
@@ -391,33 +391,33 @@ Trafo *trafo_create(const char *format, char *err, int err_len)
 		.buf = buf,
 	};
 
-	struct Trafo *fmt = malloc(sizeof(*fmt));
-	fmt->fmts = malloc(sizeof(*fmt->fmts) * 4);
-	fmt->size = 0;
-	fmt->has_else = false;
+	struct Trafo *trafo = malloc(sizeof(*trafo));
+	trafo->fmts = malloc(sizeof(*trafo->fmts) * 4);
+	trafo->size = 0;
+	trafo->has_else = false;
 	int capacity = 4;
 
 	while (scanner_peek(&s)) {
 		if ((str = scanner_scan(&s, L'$', 1)) && str[0] != L'\0') {
-			if (fmt->size + 1 >= capacity) {
+			if (trafo->size + 1 >= capacity) {
 				capacity *= 2;
-				fmt->fmts = realloc(fmt->fmts, sizeof(*fmt->fmts)*capacity);
+				trafo->fmts = realloc(trafo->fmts, sizeof(*trafo->fmts)*capacity);
 			}
-			fmt->fmts[fmt->size++] = format_create(0, str, NULL, apply_const);
+			trafo->fmts[trafo->size++] = format_create(0, str, NULL, apply_const);
 		}
 		if (scanner_peek(&s)) {
 			if (!(t = parse_transform(&s, err, err_len))) {
-				trafo_destroy(fmt);
-				fmt = NULL;
+				trafo_destroy(trafo);
+				trafo = NULL;
 				break;
 			}
 			if (t->apply == apply_else || t->apply == apply_ifelse) {
-				fmt->has_else = 1;
+				trafo->has_else = 1;
 			}
-			fmt->fmts[fmt->size++] = t;
+			trafo->fmts[trafo->size++] = t;
 		}
 	}
 	free(buf);
 	free(wformat);
-	return fmt;
+	return trafo;
 }
