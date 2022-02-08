@@ -30,6 +30,7 @@ struct Format {
 	apply_fun apply;
 };
 
+
 struct Format *format_create(int idx, const wchar_t *arg1, const wchar_t *arg2, apply_fun apply)
 {
 	struct Format *f = malloc(sizeof(*f));
@@ -40,6 +41,7 @@ struct Format *format_create(int idx, const wchar_t *arg1, const wchar_t *arg2, 
 	return f;
 }
 
+
 static void format_destroy(struct Format *f)
 {
 	if (!f)
@@ -49,10 +51,12 @@ static void format_destroy(struct Format *f)
 	free(f);
 }
 
+
 static inline void format_apply(struct Format *f, str_builder_t *sb, char **captures, int capture_count)
 {
 	f->apply(f, sb, captures, capture_count);
 }
+
 
 static int haswprefix(const wchar_t *string, const wchar_t *prefix)
 {
@@ -64,11 +68,13 @@ static int haswprefix(const wchar_t *string, const wchar_t *prefix)
 	return 1;
 }
 
+
 // normal text
 static void apply_const(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
 {
 	str_builder_add_wstr(sb, t->arg1, 0);
 }
+
 
 // ${idx}
 // $idx
@@ -80,6 +86,7 @@ static void apply_group(const struct Format *t, str_builder_t *sb, char **captur
 		}
 	}
 }
+
 
 // ${idx:/upcase}
 static void apply_upcase(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
@@ -101,6 +108,7 @@ static void apply_upcase(const struct Format *t, str_builder_t *sb, char **captu
 	}
 }
 
+
 // ${idx:/downcase}
 static void apply_downcase(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
 {
@@ -120,6 +128,7 @@ static void apply_downcase(const struct Format *t, str_builder_t *sb, char **cap
 		}
 	}
 }
+
 
 // ${idx:/capitalize}
 static void apply_capitalize(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
@@ -152,6 +161,7 @@ static void apply_capitalize(const struct Format *t, str_builder_t *sb, char **c
 	}
 }
 
+
 // ${idx:+t->arg1}
 static void apply_if(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
 {
@@ -161,6 +171,7 @@ static void apply_if(const struct Format *t, str_builder_t *sb, char **captures,
 		str_builder_add_wstr(sb, t->arg1, 0);
 	}
 }
+
 
 // ${idx:-t->arg1}
 // ${idx:t->arg1}
@@ -175,6 +186,7 @@ static void apply_else(const struct Format *t, str_builder_t *sb, char **capture
 	}
 }
 
+
 // ${idx:?t->arg1:t->arg2}
 static void apply_ifelse(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
 {
@@ -187,6 +199,7 @@ static void apply_ifelse(const struct Format *t, str_builder_t *sb, char **captu
 	}
 }
 
+
 struct scanner {
 	const wchar_t *str;
 	const wchar_t *pos;
@@ -194,20 +207,24 @@ struct scanner {
 	int buf_ind;
 };
 
+
 static wchar_t scanner_peek(struct scanner *s)
 {
 	return *s->pos;
 }
+
 
 static wchar_t scanner_pop(struct scanner *s)
 {
 	return *s->pos++;
 }
 
+
 void scanner_seek(struct scanner *s, wchar_t c)
 {
 	while (scanner_pop(s) != c);
 }
+
 
 // If scan_to_end is not zero, then reaching L'\0' is not an error, otherwise
 // NULL is returned.
@@ -230,6 +247,7 @@ static wchar_t *scanner_scan(struct scanner *s, wchar_t c, int scan_to_end)
 	}
 	return NULL;
 }
+
 
 static struct Format *parse_transform(struct scanner *s, char *err, int err_len)
 {
@@ -325,22 +343,25 @@ static struct Format *parse_transform(struct scanner *s, char *err, int err_len)
 	}
 }
 
+
 void trafo_destroy(struct Trafo *fmt)
 {
-	int i;
-	if (fmt) {
-		for (i = 0; i < fmt->size; i++) {
-			format_destroy(fmt->fmts[i]);
-		}
-		free(fmt->fmts);
-		free(fmt);
+	if (!fmt)
+		return;
+
+	for (int i = 0; i < fmt->size; i++) {
+		format_destroy(fmt->fmts[i]);
 	}
+	free(fmt->fmts);
+	free(fmt);
 }
+
 
 bool trafo_has_else(struct Trafo *fmt)
 {
 	return fmt->has_else;
 }
+
 
 void trafo_apply(struct Trafo *fmt, str_builder_t *sb, char **captures, int capture_count)
 {
@@ -349,6 +370,7 @@ void trafo_apply(struct Trafo *fmt, str_builder_t *sb, char **captures, int capt
 		format_apply(fmt->fmts[i], sb, captures, capture_count);
 	}
 }
+
 
 Trafo *trafo_create(const char *format, char *err, int err_len)
 {
