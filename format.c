@@ -1,7 +1,8 @@
 #include <ctype.h>
 #include <stdio.h>
-#include <string.h>
+#include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <wchar.h>
 #include <wctype.h>
 
@@ -17,7 +18,7 @@
 struct format_t {
 	struct trafo_t **trafos;
 	int size;
-	int has_else;
+	bool has_else;
 };
 
 typedef void (*apply_fun)(const struct trafo_t*, str_builder_t*, char**, int);
@@ -336,7 +337,7 @@ void format_destroy(struct format_t *fmt)
 	}
 }
 
-int format_has_else(struct format_t *fmt)
+bool format_has_else(struct format_t *fmt)
 {
 	return fmt->has_else;
 }
