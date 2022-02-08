@@ -230,7 +230,7 @@ static void scanner_seek(struct scanner *s, wchar_t c)
 // NULL is returned.
 static wchar_t *scanner_scan(struct scanner *s, wchar_t c, int scan_to_end)
 {
-	wchar_t * const res = s->buf+s->buf_ind;
+	wchar_t *const res = s->buf + s->buf_ind;
 	wchar_t w;
 	while ((w = scanner_peek(s))) {
 		if (w == c) {
@@ -379,7 +379,7 @@ Trafo *trafo_create(const char *format, char *err, int err_len)
 	mbstate_t state;
 	wchar_t *str;
 
-	memset(&state, 0, sizeof state);
+	memset(&state, 0, sizeof(state));
 	const int l = mbsrtowcs(NULL, &format, 0, &state);
 	wchar_t wformat[l+1], buf[l+1];
 	mbsrtowcs(wformat, &format, l + 1, &state);
@@ -388,13 +388,12 @@ Trafo *trafo_create(const char *format, char *err, int err_len)
 		.str = wformat,
 		.pos = wformat,
 		.buf = buf,
-		.buf_ind = 0,
 	};
 
 	struct Trafo *fmt = malloc(sizeof(*fmt));
 	fmt->fmts = malloc(sizeof(*fmt->fmts) * 4);
 	fmt->size = 0;
-	fmt->has_else = 0;
+	fmt->has_else = false;
 	int capacity = 4;
 
 	while (scanner_peek(&s)) {
