@@ -1,6 +1,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
@@ -17,7 +18,7 @@
 
 struct Trafo {
 	struct Format **fmts;
-	int size;
+	size_t size;
 	bool has_else;
 };
 
@@ -80,10 +81,10 @@ static void apply_const(const struct Format *t, str_builder_t *sb, char **captur
 // $idx
 static void apply_group(const struct Format *t, str_builder_t *sb, char **captures, int capture_count)
 {
-	if (t->idx < capture_count) {
-		if (CAPTURE(captures, t->idx) && CAPTURE_LEN(captures, t->idx) > 0) {
-			str_builder_add_str(sb, CAPTURE(captures, t->idx), CAPTURE_LEN(captures, t->idx));
-		}
+	if (t->idx < capture_count
+			&& CAPTURE(captures, t->idx)
+			&& CAPTURE_LEN(captures, t->idx) > 0) {
+		str_builder_add_str(sb, CAPTURE(captures, t->idx), CAPTURE_LEN(captures, t->idx));
 	}
 }
 
@@ -137,20 +138,20 @@ static void apply_capitalize(const struct Format *t, str_builder_t *sb, char **c
 	wchar_t wc;
 	if (t->idx < capture_count && (s = CAPTURE(captures, t->idx))) {
 		char *end = CAPTURE_END(captures, t->idx);
-		int cap = 1; /* capitalize next char */
+		bool capitalize = true;
 		while (s < end) {
 			int l = mbtowc(&wc, s, end-s);
 			if (l > 0) {
 				s += l;
-				if (cap) {
+				if (capitalize) {
 					str_builder_add_wchar(sb, towupper(wc));
 					if (iswalpha(wc)) {
-						cap = 0;
+						capitalize = false;
 					}
 				} else {
 					str_builder_add_wchar(sb, towlower(wc));
 					if (!iswalpha(wc)) {
-						cap = 1;
+						capitalize = true;
 					}
 				}
 			} else {
@@ -220,7 +221,7 @@ static wchar_t scanner_pop(struct scanner *s)
 }
 
 
-// defined only if we know c exists
+// behaves only if we know c exists
 static void scanner_seek(struct scanner *s, wchar_t c)
 {
 	while (scanner_pop(s) != c);
@@ -350,7 +351,7 @@ void trafo_destroy(struct Trafo *trafo)
 	if (!trafo)
 		return;
 
-	for (int i = 0; i < trafo->size; i++) {
+	for (size_t i = 0; i < trafo->size; i++) {
 		format_destroy(trafo->fmts[i]);
 	}
 	free(trafo->fmts);
@@ -366,7 +367,7 @@ bool trafo_has_else(struct Trafo *trafo)
 
 void trafo_apply(struct Trafo *trafo, str_builder_t *sb, char **captures, int capture_count)
 {
-	for (int i = 0; i < trafo->size; i++) {
+	for (size_t i = 0; i < trafo->size; i++) {
 		format_apply(trafo->fmts[i], sb, captures, capture_count);
 	}
 }
@@ -375,12 +376,16 @@ void trafo_apply(struct Trafo *trafo, str_builder_t *sb, char **captures, int ca
 Trafo *trafo_create(const char *formats, char *err, int err_len)
 {
 	/* printf("format_create %s\n", format); */
-	struct Format *t;
-	mbstate_t state;
-	wchar_t *str;
 
+	struct Trafo *trafo = malloc(sizeof(*trafo));
+	trafo->fmts = malloc(sizeof(*trafo->fmts) * 4);
+	trafo->size = 0;
+	trafo->has_else = false;
+	size_t capacity = 4;
+
+	mbstate_t state;
 	memset(&state, 0, sizeof(state));
-	const int l = mbsrtowcs(NULL, &formats, 0, &state);
+	const size_t l = mbsrtowcs(NULL, &formats, 0, &state);
 	wchar_t *wformat = calloc(l + 1, sizeof(wchar_t)) ;
 	wchar_t *buf = calloc(l + 1, sizeof(wchar_t));
 	mbsrtowcs(wformat, &formats, l + 1, &state);
@@ -391,17 +396,13 @@ Trafo *trafo_create(const char *formats, char *err, int err_len)
 		.buf = buf,
 	};
 
-	struct Trafo *trafo = malloc(sizeof(*trafo));
-	trafo->fmts = malloc(sizeof(*trafo->fmts) * 4);
-	trafo->size = 0;
-	trafo->has_else = false;
-	int capacity = 4;
-
+	struct Format *t;
+	wchar_t *str;
 	while (scanner_peek(&s)) {
 		if ((str = scanner_scan(&s, L'$', 1)) && str[0] != L'\0') {
 			if (trafo->size + 1 >= capacity) {
 				capacity *= 2;
-				trafo->fmts = realloc(trafo->fmts, sizeof(*trafo->fmts)*capacity);
+				trafo->fmts = realloc(trafo->fmts, capacity * sizeof(*trafo->fmts));
 			}
 			trafo->fmts[trafo->size++] = format_create(0, str, NULL, apply_const);
 		}
@@ -412,7 +413,7 @@ Trafo *trafo_create(const char *formats, char *err, int err_len)
 				break;
 			}
 			if (t->apply == apply_else || t->apply == apply_ifelse) {
-				trafo->has_else = 1;
+				trafo->has_else = true;
 			}
 			trafo->fmts[trafo->size++] = t;
 		}
