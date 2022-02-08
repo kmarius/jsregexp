@@ -5,7 +5,6 @@
 
 #include "str_builder.h"
 
-struct Trafo;
 typedef struct Trafo Trafo;
 
 Trafo *trafo_create(const char *format, char *err, int err_len);
