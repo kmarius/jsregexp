@@ -220,6 +220,7 @@ static wchar_t scanner_pop(struct scanner *s)
 }
 
 
+// defined only if we know c exists
 static void scanner_seek(struct scanner *s, wchar_t c)
 {
 	while (scanner_pop(s) != c);
@@ -365,8 +366,7 @@ bool trafo_has_else(struct Trafo *fmt)
 
 void trafo_apply(struct Trafo *fmt, str_builder_t *sb, char **captures, int capture_count)
 {
-	int i;
-	for (i = 0; i < fmt->size; i++) {
+	for (int i = 0; i < fmt->size; i++) {
 		format_apply(fmt->fmts[i], sb, captures, capture_count);
 	}
 }
