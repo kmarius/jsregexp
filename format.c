@@ -220,7 +220,7 @@ static wchar_t scanner_pop(struct scanner *s)
 }
 
 
-void scanner_seek(struct scanner *s, wchar_t c)
+static void scanner_seek(struct scanner *s, wchar_t c)
 {
 	while (scanner_pop(s) != c);
 }
