@@ -3,3 +3,4 @@
 .ccls
 .ccls-cache
 *.lua
+tags
