@@ -1,95 +1,106 @@
 #define LUA_LIB
 
 #include <lauxlib.h>
-#include <locale.h>
 #include <lua.h>
-#include <lualib.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "format.h"
 #include "libregexp.h"
-#include "str_builder.h"
 
 #define CAPTURE_COUNT_MAX 255 /* from libregexp.c */
 
-struct replacer {
+struct regex {
 	uint8_t *bc;
-	Trafo *trafo;
 };
 
-static str_builder_t *sb;
 
-
-static int l_trafo_closure(lua_State *L)
+static int regex_closure(lua_State *lstate)
 {
 	uint8_t *capture[CAPTURE_COUNT_MAX * 2];
 
-	struct replacer *r = lua_touserdata(L, lua_upvalueindex(1));
+	struct regex *r = lua_touserdata(lstate, lua_upvalueindex(1));
 	const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
 	const int capture_count = lre_get_capture_count(r->bc);
 
-	const uint8_t *input = (uint8_t *) luaL_checkstring(L, 1);
+	const uint8_t *input = (uint8_t *) luaL_checkstring(lstate, 1);
 	const int input_len = strlen((char *) input);
 
-	str_builder_clear(sb);
+	lua_newtable(lstate);
 
-	uint16_t nmatch = 0;
+	int nmatch = 0;
+
 	int cindex = 0;
 	while (lre_exec(capture, r->bc, input, cindex, input_len, 0, NULL) == 1) {
-		nmatch++;
 
-		if (capture[0] != input + cindex) {
-			str_builder_add_str(sb, (char *) input+cindex,
-					capture[0]-input-cindex);
-		}
-
-		trafo_apply(r->trafo, sb, (char **) capture, capture_count);
-
-		cindex = capture[1] - input;
-
-		// Infinite loops can happen when (\\s*) matches with nothing e.g. on
-		// a bad regex like (\\s*)|(\\w+) I checked an online js repl and
-		// I think it just aborts on a match of length 0 ? vscode does one
-		// transform (i.e. inserts the format since nothing is removed).
+		// happens on a regex like (\\s*), don't know how we should handle it
+		// and can't remember how vscode handles it
 		if (capture[0] == capture[1]) {
 			break;
 		}
+
+		nmatch++;
+		cindex = capture[1] - input;
+
+		lua_newtable(lstate);
+
+		lua_pushnumber(lstate, 1 + capture[0] - input);
+		lua_setfield(lstate, -2, "begin_ind");
+
+		lua_pushnumber(lstate, 1 + capture[1] - input);
+		lua_setfield(lstate, -2, "end_ind");
+
+		lua_pushnumber(lstate, capture[1] - capture[0]);
+		lua_setfield(lstate, -2, "length");
+
+		lua_newtable(lstate);
+		for (int i = 0; i < capture_count - 1; i++) {
+			lua_pushlstring(lstate, (char *) capture[2 * i + 2], capture[2 * i + 3] - capture[2 * i + 2]);
+			lua_rawseti(lstate, -2, i + 1);
+		}
+		lua_setfield(lstate, -2, "groups");
+
+		lua_rawseti(lstate, -2, nmatch);
 
 		if (!global) {
 			break;
 		}
 	}
-	if (nmatch == 0 && trafo_has_else(r->trafo)) {
-		// Trigger 'else' part of ${N:?*:*} and ${N:-*} placeholders
-		trafo_apply(r->trafo, sb, NULL, 0);
-	} else {
-		str_builder_add_str(sb, (char *) input + cindex, 0);
-	}
-	lua_pushstring(L, str_builder_peek(sb));
-	str_builder_clear(sb);
+
 	return 1;
 }
 
 
-static int l_transform_gc(lua_State *L)
+static int jsregexp_gc(lua_State *lstate)
 {
-	struct replacer *r = lua_touserdata(L, 1);
+	struct regex *r = lua_touserdata(lstate, 1);
 	free(r->bc);
-	trafo_destroy(r->trafo);
 	return 0;
 }
 
 
-static int l_jsregexp_transformer(lua_State *L)
+/* static int jsregexp_tostring(lua_State *lstate) */
+/* { */
+/* 	lua_pushfstring(lstate, "jsregexp: %p", lua_touserdata(lstate, 1)); */
+/* 	return 1; */
+/* } */
+
+
+static struct luaL_Reg jsregexp_meta[] = {
+  {"__gc", jsregexp_gc},
+  /* {"__tostring", jsregexp_tostring}, */
+  {NULL, NULL}
+};
+
+
+static int jsregexp_compile(lua_State *lstate)
 {
 	char error_msg[64];
 	int len, re_flags = 0;
 
-	const char *regex = luaL_checkstring(L, 1);
+	const char *regex = luaL_checkstring(lstate, 1);
 
-	if (!lua_isnoneornil(L, 3)) {
-		const char *flags = luaL_checkstring(L, 3);
+	if (!lua_isnoneornil(lstate, 2)) {
+		const char *flags = luaL_checkstring(lstate, 2);
 		while (*flags) {
 			switch (*(flags++)) {
 				case 'i': re_flags |= LRE_FLAG_IGNORECASE; break;
@@ -99,49 +110,35 @@ static int l_jsregexp_transformer(lua_State *L)
 		}
 	}
 
-	uint8_t *bc = lre_compile(&len, error_msg, sizeof(error_msg), regex,
+	uint8_t *bc = lre_compile(&len, error_msg, sizeof error_msg, regex,
 			strlen(regex), re_flags, NULL);
 	if (!bc) {
-		lua_pushnil(L);
-		lua_pushstring(L, error_msg);
+		lua_pushnil(lstate);
+		lua_pushstring(lstate, error_msg);
 		return 2;
 	}
 
-	Trafo *trafo = trafo_create(luaL_checkstring(L, 2), error_msg,
-			sizeof(error_msg));
-	if (!trafo) {
-		free(bc);
-		lua_pushnil(L);
-		lua_pushstring(L, error_msg);
-		return 2;
-	}
-
-	struct replacer *ud = lua_newuserdata(L, sizeof(*ud));
+	struct regex *ud = lua_newuserdata(lstate, sizeof *ud);
 	ud->bc = bc;
-	ud->trafo = trafo;
 
-	if (luaL_newmetatable(L, "jsregexp_transform")) {
-		lua_pushcfunction(L, l_transform_gc);
-		lua_setfield(L, -2, "__gc");
+	if (luaL_newmetatable(lstate, "jsregexp_meta")) {
+		luaL_register(lstate, NULL, jsregexp_meta);
 	}
-	lua_setmetatable(L, -2);
+	lua_setmetatable(lstate, -2);
 
-	lua_pushcclosure(L, l_trafo_closure, 1);
+	lua_pushcclosure(lstate, regex_closure, 1);
 	return 1;
 }
 
 
-static const struct luaL_Reg lib[] = {
-	{"transformer", l_jsregexp_transformer},
+static const struct luaL_Reg jsregexp_lib[] = {
+	{"compile", jsregexp_compile},
 	{NULL, NULL}
 };
 
 
-int luaopen_jsregexp(lua_State *L)
+int luaopen_jsregexp(lua_State *lstate)
 {
-	sb = str_builder_create();
-	/* setlocale(LC_ALL, "de_DE.UTF-8"); */
-	setlocale(LC_ALL, "en_US.UTF-8");
-	luaL_openlib(L, "jsregexp", lib, 0);
+	luaL_openlib(lstate, "jsregexp", jsregexp_lib, 0);
 	return 1;
 }
