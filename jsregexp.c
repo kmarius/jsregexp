@@ -32,14 +32,18 @@ static int regex_closure(lua_State *lstate)
 	int cindex = 0;
 	while (lre_exec(capture, r->bc, input, cindex, input_len, 0, NULL) == 1) {
 
-		// happens on a regex like (\\s*), don't know how we should handle it
-		// and can't remember how vscode handles it
 		if (capture[0] == capture[1]) {
-			break;
+			// empty match -> continue matching from next character (to prevent an endless loop).
+			// This is basically the same implementation as in quickjs, see
+			// https://github.com/bellard/quickjs/blob/2788d71e823b522b178db3b3660ce93689534e6d/quickjs.c#L42857-L42869
+
+			// +1 works for ascii, take a closer look for unicode
+			++cindex;
+		} else {
+			cindex = capture[1] - input;
 		}
 
 		nmatch++;
-		cindex = capture[1] - input;
 
 		lua_newtable(lstate);
 
@@ -61,7 +65,7 @@ static int regex_closure(lua_State *lstate)
 
 		lua_rawseti(lstate, -2, nmatch);
 
-		if (!global) {
+		if (!global || cindex > input_len) {
 			break;
 		}
 	}
