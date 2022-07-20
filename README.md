@@ -31,7 +31,7 @@ that takes an ECMAScript regular expression as a string and an optional string o
 
 On success, returns a function that takes a string as its single argument and returns a table containing all matches. On failure, returns `nil` and an error message.
 
-An empty table is returned if the regular expression does not match.
+The function returns an empty table if the regular expression does not match. It will always return a table of matches even if the global flag `"g"` is not set and only a single match (at most) is possible.
 
 Each `match` consists of a table with the fields
 
