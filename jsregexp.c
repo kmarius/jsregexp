@@ -43,8 +43,6 @@ static int regex_closure(lua_State *lstate)
       cindex = capture[1] - input;
     }
 
-    nmatch++;
-
     lua_newtable(lstate);
 
     lua_pushnumber(lstate, 1 + capture[0] - input);
@@ -57,13 +55,13 @@ static int regex_closure(lua_State *lstate)
     lua_setfield(lstate, -2, "length");
 
     lua_newtable(lstate);
-    for (int i = 0; i < capture_count - 1; i++) {
-      lua_pushlstring(lstate, (char *) capture[2 * i + 2], capture[2 * i + 3] - capture[2 * i + 2]);
-      lua_rawseti(lstate, -2, i + 1);
+    for (int i = 1; i < capture_count; i++) {
+      lua_pushlstring(lstate, (char *) capture[2 * i], capture[2 * i + 1] - capture[2 * i]);
+      lua_rawseti(lstate, -2, i);
     }
     lua_setfield(lstate, -2, "groups");
 
-    lua_rawseti(lstate, -2, nmatch);
+    lua_rawseti(lstate, -2, ++nmatch);
 
     if (!global || cindex > input_len) {
       break;
