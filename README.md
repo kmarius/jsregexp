@@ -12,7 +12,13 @@ use_rocks 'jsregexp'
     
 in the function passed to `packer.startup`.
 
-To install `jsregexp` locally with [luarocks](https://luarocks.org/modules/kmarius/jsregexp), run
+To install `jsregexp` globally with [luarocks](https://luarocks.org/modules/kmarius/jsregexp),
+run 
+```bash
+sudo luarocks --lua-version 5.1 install jsregexp
+```
+
+To install `jsregexp` locally, run
 
 ```bash
 luarocks --local --lua-version 5.1 install jsregexp
