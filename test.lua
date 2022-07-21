@@ -1,4 +1,4 @@
-local jsregexp = require("jsregexp")
+local jsregexp = require("jsregexp_ffi")
 
 local tests = 0
 local fails = 0

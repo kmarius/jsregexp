@@ -11,17 +11,19 @@ CC = gcc
 
 .PHONY: all clean
 
-all: $(TARGET)
+all: $(TARGET) libregexp.so
 
 $(TARGET): $(OBJECTS)
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
+
+libregexp.so: $(filter-out jsregexp.o,$(OBJECTS))
+	$(CC) $(LDFLAGS) $^ -o $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $^ -o $@
 
 check:
-	lua5.1 test.lua
-	luajit test.lua
+	LD_LIBRARY_PATH=. luajit test.lua
 
 clean:
 	rm -f *.o *.so
