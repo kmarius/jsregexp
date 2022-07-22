@@ -54,7 +54,7 @@ static int regex_closure(lua_State *lstate)
 
   // index of the (first) corresponding char in the utf8 string
   uint32_t *indices = malloc((input_len+1) * sizeof *indices);
-  uint16_t *input_utf16 = malloc(input_len * sizeof *input_utf16);
+  uint16_t *input_utf16 = malloc((input_len+1) * sizeof *input_utf16);
 
   /* { */
   /*  fprintf(stderr, "--- input:\n"); */
@@ -104,10 +104,9 @@ static int regex_closure(lua_State *lstate)
       // https://github.com/bellard/quickjs/blob/2788d71e823b522b178db3b3660ce93689534e6d/quickjs.c#L42857-L42869
 
       // +1 works for ascii, take a closer look for unicode
-      cindex += 1;
+      cindex++;
     } else {
-      cindex = capture[1] - (uint8_t *) input_utf16;
-      cindex /= 2;
+      cindex = (capture[1] - (uint8_t *) input_utf16) / 2;
     }
 
     lua_newtable(lstate);
