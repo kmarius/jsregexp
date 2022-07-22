@@ -2,9 +2,12 @@
 
 #include <lauxlib.h>
 #include <lua.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "cutils.h"
 #include "libregexp.h"
 
 #define CAPTURE_COUNT_MAX 255 /* from libregexp.c */
@@ -26,6 +29,17 @@ struct regex {
 };
 
 
+static inline bool utf8_contains_unicode(const char *s)
+{
+  while (*s) {
+    if (*s++ & (1 << 7)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+
 static int regex_closure(lua_State *lstate)
 {
   uint8_t *capture[CAPTURE_COUNT_MAX * 2];
@@ -38,12 +52,51 @@ static int regex_closure(lua_State *lstate)
   const uint8_t *input = (uint8_t *) luaL_checkstring(lstate, 1);
   const int input_len = strlen((char *) input);
 
+  // index of the (first) corresponding char in the utf8 string
+  uint32_t *indices = malloc((input_len+1) * sizeof *indices);
+  uint16_t *input_utf16 = malloc(input_len * sizeof *input_utf16);
+
+  /* { */
+  /*  fprintf(stderr, "--- input:\n"); */
+  /*  const uint8_t *c = input; */
+  /*  while (*c) { */
+  /*    fprintf(stderr, "%hhx : %u\n", *c, *c); */
+  /*    c++; */
+  /*  } */
+  /* } */
+
+  // convert input string to utf16
+  int input_utf16_len = 0;
+  {
+    const uint8_t *pos = (const uint8_t *) input;
+    while (*pos) {
+      indices[input_utf16_len] = pos - input;
+      int c = unicode_from_utf8(pos, UTF8_CHAR_LEN_MAX, &pos);
+      if ((unsigned) c > 0xffff) {
+        input_utf16[input_utf16_len++] = (c >> 16) + (0xd8 << 8);
+      }
+      input_utf16[input_utf16_len++] = (c & 0xffff);
+    }
+    input_utf16[input_utf16_len] = 0;
+    indices[input_utf16_len] = input_len;
+  }
+
+  /* { */
+  /*  const uint16_t *c = input_utf16; */
+  /*  fprintf(stderr, "--- input UTF16:\n"); */
+  /*  while (*c) { */
+  /*    const uint8_t *chars = (uint8_t*) c; */
+  /*    fprintf(stderr, "%02hhx %02hhx : %u\n", *chars, *(chars+1), *c); */
+  /*    c++; */
+  /*  } */
+  /* } */
+
   lua_newtable(lstate);
 
   int nmatch = 0;
 
   int cindex = 0;
-  while (lre_exec(capture, r->bc, input, cindex, input_len, 0, NULL) == 1) {
+  while (lre_exec(capture, r->bc, (uint8_t *) input_utf16, cindex, input_utf16_len, 1, NULL) == 1) {
 
     if (capture[0] == capture[1]) {
       // empty match -> continue matching from next character (to prevent an endless loop).
@@ -51,18 +104,22 @@ static int regex_closure(lua_State *lstate)
       // https://github.com/bellard/quickjs/blob/2788d71e823b522b178db3b3660ce93689534e6d/quickjs.c#L42857-L42869
 
       // +1 works for ascii, take a closer look for unicode
-      ++cindex;
+      cindex += 1;
     } else {
-      cindex = capture[1] - input;
+      cindex = capture[1] - (uint8_t *) input_utf16;
+      cindex /= 2;
     }
 
     lua_newtable(lstate);
 
-    lua_pushinteger(lstate, 1 + capture[0] - input);
+    lua_pushnumber(lstate, indices[(capture[0] - (uint8_t *) input_utf16) / 2]);
     lua_setfield(lstate, -2, "begin_ind");
 
-    lua_pushinteger(lstate, capture[1] - input);
+    lua_pushnumber(lstate, indices[(capture[1] - (uint8_t *) input_utf16) / 2]);
     lua_setfield(lstate, -2, "end_ind");
+
+    /* lua_pushnumber(lstate, capture[1] - capture[0]); */
+    /* lua_setfield(lstate, -2, "length"); */
 
     lua_newtable(lstate);
 
@@ -72,7 +129,9 @@ static int regex_closure(lua_State *lstate)
       group_names = lre_get_groupnames(r->bc);
     }
     for (int i = 1; i < capture_count; i++) {
-      lua_pushlstring(lstate, (char *) capture[2 * i], capture[2 * i + 1] - capture[2 * i]);
+      uint16_t a = indices[(capture[2*i] - (uint8_t *) input_utf16) / 2];
+      uint16_t b = indices[(capture[2*i+1] - (uint8_t *) input_utf16) / 2];
+      lua_pushlstring(lstate, (char *) input+a, b-a);
       lua_rawseti(lstate, -2, i);
       if (named_groups && group_names != NULL) {
         if (*group_names != '\0') { // check if current group is named
@@ -94,10 +153,13 @@ static int regex_closure(lua_State *lstate)
 
     lua_rawseti(lstate, -2, ++nmatch);
 
-    if (!global || cindex > input_len) {
+    if (!global || cindex > input_utf16_len) {
       break;
     }
   }
+
+  free(input_utf16);
+  free(indices);
 
   return 1;
 }
@@ -154,7 +216,7 @@ static int jsregexp_compile(lua_State *lstate)
 
   struct regex *ud = lua_newuserdata(lstate, sizeof *ud);
   ud->bc = bc;
-  
+
 
   luaL_getmetatable(lstate, "jsregexp_meta");
   lua_setmetatable(lstate, -2);

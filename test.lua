@@ -6,41 +6,41 @@ local successes = 0
 
 -- TODO: print more info case on fail
 local function test(str, regex, flags, want)
+	local function fail(...)
+		print(str, regex, flags, want)
+		print(...)
+		fails = fails + 1
+	end
+
 	tests = tests + 1
 	local r = jsregexp.compile(regex, flags)
 	if want and r then
 		local res = r(str)
 		if #res ~= #want then
-			print("match count mismatch: wanted", #want, "got ", #res)
 			fails = fails + 1
-			return
+			return fail("match count mismatch: wanted", #want, "got ", #res)
 		end
 		for i, val in pairs(res) do
 			local want = want[i]
 			if not want then
-				fails = fails + 1
-				return
+				return fail("compilation should have failed")
 			end
 			local match = string.sub(str, val.begin_ind, val.end_ind)
 			if match ~= want[1] then
-				fails = fails + 1
-				print(match, want[1])
-				return
+				return fail("global mismatch:", match, want[1])
 			end
 			if #val.groups > 0 then
 				if not want.groups or #want.groups ~= #val.groups then
-					fails = fails + 1
-					return
+					return fail("number of match groups mismatch")
 				end
 				for j, v in pairs(val.groups) do
 					if v ~= want.groups[j] then
-						fails = fails + 1
+						return fail("match group mismatch", i, v, want.groups[j])
 					end
 				end
 			else
 				if want.groups and #want.groups > 0 then
-					fails = fails + 1
-					return
+					return fail("number of match groups mismatch")
 				end
 			end
 			if want.named_groups ~= nil then
@@ -61,7 +61,7 @@ local function test(str, regex, flags, want)
 	elseif not want and not r then
 		successes = successes + 1
 	else
-		fails = fails + 1
+		return fail("compilation error")
 	end
 end
 
@@ -78,11 +78,15 @@ test("dummy", "d", "", {{"d"}})
 test("dummy", "m", "", {{"m"}})
 test("dummy", "m", "g", {{"m"}, {"m"}})
 
--- no unicode yet
--- test("äöü", ".", "g", {{"ä"}, {"ö"}, {"ü"}})
--- test("äöü", "[äöü]", "g", {{"ä"}, {"ö"}, {"ü"}})
--- test("äöü", ".", "", {{"ä"}})
--- test("ÄÖÜ", ".", "", {{"Ä"}})
+test("äöü", ".", "g", {{"ä"}, {"ö"}, {"ü"}})
+test("äöü", ".", "", {{"ä"}})
+test("ÄÖÜ", ".", "", {{"Ä"}})
+test("äöü", "[äöü]", "g", {{"ä"}, {"ö"}, {"ü"}})
+test("äöü", "[äöü]*", "g", {{"äöü"}, {""}})
+test("öäü.haha", "([^.]*)\\.(.*)", "", {{"öäü.haha", groups={"öäü", "haha"}}})
+
+-- multiple utf16 codepoints, doesn't compile
+-- test("𝄞", "𝄞", "", {{"𝄞"}})
 
 test("dummy", "(dummy)", "", {{"dummy", groups = {"dummy"}}})
 
