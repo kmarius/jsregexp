@@ -54,7 +54,7 @@ static inline char *utf8_to_cesu8(const char *src, int *l)
   char *q = str;
 
   while (*src) {
-    if (!(*src & 0xf0)) {
+    if ((*src & 0xf0) != 0xf0) {
       *q++ = *src++;
     } else  {
       // next four bytes
