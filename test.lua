@@ -60,8 +60,10 @@ local function test(str, regex, flags, want)
 		successes = successes + 1
 	elseif not want and not r then
 		successes = successes + 1
-	else
+	elseif not r and want then
 		return fail("compilation error")
+	else
+		return fail("should not compile")
 	end
 end
 
@@ -83,10 +85,12 @@ test("äöü", ".", "", {{"ä"}})
 test("ÄÖÜ", ".", "", {{"Ä"}})
 test("äöü", "[äöü]", "g", {{"ä"}, {"ö"}, {"ü"}})
 test("äöü", "[äöü]*", "g", {{"äöü"}, {""}})
+test("äÄ", "ä", "gi", {{"ä"}, {"Ä"}})
 test("öäü.haha", "([^.]*)\\.(.*)", "", {{"öäü.haha", groups={"öäü", "haha"}}})
 
 -- multiple utf16 codepoints, doesn't compile
--- test("𝄞", "𝄞", "", {{"𝄞"}})
+test("𝄞", "𝄞", "", {{"𝄞"}})
+test("𝄞", "𝄞(", "", nil)
 
 test("dummy", "(dummy)", "", {{"dummy", groups = {"dummy"}}})
 
@@ -104,5 +108,7 @@ local normal = "\27[0m"
 
 local color = fails == 0 and bold_green or bold_red
 print(string.format("%s%d tests run, %d successes, %d failed%s", color, tests, successes, fails, normal))
-collectgarbage()
-os.exit(fails == 0 and 0 or 1)
+if fails > 0 then
+	collectgarbage()
+	os.exit(1)
+end

@@ -29,6 +29,56 @@ struct regex {
 };
 
 
+// libregex expects the regex encoded as CESU8: https://en.wikipedia.org/wiki/CESU-8
+// (utf16 didn't work)
+
+// check for bytes larger or equal to 0xF0, the corresponding code point gets encoded
+// with 3 bytes in CESU8
+static inline bool utf8_contains_cesu8(const char *s)
+{
+  uint8_t *q = (uint8_t *) s;
+  while (*q) {
+    if ((*q++ & 0xf0) == 0xf0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+
+// TODO: we assume valid utf8 here, think about at least checking if the string
+// doesn't end and we access unknown memory
+static inline char *utf8_to_cesu8(const char *src, int *l)
+{
+  char *str = malloc(3 * strlen(src) / 2 + 1);
+  char *q = str;
+
+  while (*src) {
+    if (!(*src & 0xf0)) {
+      *q++ = *src++;
+    } else  {
+      // next four bytes
+      int c = (*src++ & 0x07) << 18;
+      c |= (*src++ & 0x3f) << 12;
+      c |= (*src++ & 0x3f) << 6;
+      c |= *src++ & 0x3f;
+
+      *q++ = 0xed;
+      *q++ = 0xa0 | ((c & 0x1f0000) >> 16) - 1;
+      *q++ = 0x80 | ((c & 0xfc00) >> 10);
+
+      *q++ = 0xed;
+      *q++ = 0xb0 | ((c & 0x3c0) >> 6);
+      *q++ = 0x80 | c & 0x3f;
+    }
+  }
+  *q = 0;
+
+  *l = q - str;
+  return str;
+}
+
+
 static inline bool utf8_contains_unicode(const char *s)
 {
   while (*s) {
@@ -57,12 +107,12 @@ static int regex_closure(lua_State *lstate)
   uint16_t *input_utf16 = malloc((input_len+1) * sizeof *input_utf16);
 
   /* { */
-  /*  fprintf(stderr, "--- input:\n"); */
-  /*  const uint8_t *c = input; */
-  /*  while (*c) { */
-  /*    fprintf(stderr, "%hhx : %u\n", *c, *c); */
-  /*    c++; */
-  /*  } */
+  /*   fprintf(stderr, "--- input:\n"); */
+  /*   const uint8_t *c = input; */
+  /*   while (*c) { */
+  /*     fprintf(stderr, "%hhx : %u\n", *c, *c); */
+  /*     c++; */
+  /*   } */
   /* } */
 
   // convert input string to utf16
@@ -73,22 +123,24 @@ static int regex_closure(lua_State *lstate)
       indices[input_utf16_len] = pos - input;
       int c = unicode_from_utf8(pos, UTF8_CHAR_LEN_MAX, &pos);
       if ((unsigned) c > 0xffff) {
-        input_utf16[input_utf16_len++] = (c >> 16) + (0xd8 << 8);
+        input_utf16[input_utf16_len++] = (((c - 0x10000) >> 10) | (0xd8 << 8));
+        input_utf16[input_utf16_len++] = (c & 0xfffff) | (0xdc << 8);
+      } else {
+        input_utf16[input_utf16_len++] = c & 0xffff;
       }
-      input_utf16[input_utf16_len++] = (c & 0xffff);
     }
     input_utf16[input_utf16_len] = 0;
     indices[input_utf16_len] = input_len;
   }
 
   /* { */
-  /*  const uint16_t *c = input_utf16; */
-  /*  fprintf(stderr, "--- input UTF16:\n"); */
-  /*  while (*c) { */
-  /*    const uint8_t *chars = (uint8_t*) c; */
-  /*    fprintf(stderr, "%02hhx %02hhx : %u\n", *chars, *(chars+1), *c); */
-  /*    c++; */
-  /*  } */
+  /*   const uint16_t *c = input_utf16; */
+  /*   fprintf(stderr, "--- input UTF16:\n"); */
+  /*   while (*c) { */
+  /*     const uint8_t *chars = (uint8_t*) c; */
+  /*     fprintf(stderr, "%02hhx %02hhx : %u\n", *chars, *(chars+1), *c); */
+  /*     c++; */
+  /*   } */
   /* } */
 
   lua_newtable(lstate);
@@ -205,8 +257,19 @@ static int jsregexp_compile(lua_State *lstate)
     }
   }
 
-  uint8_t *bc = lre_compile(&len, error_msg, sizeof error_msg, regex,
-      strlen(regex), re_flags, NULL);
+  uint8_t *bc;
+
+  if (utf8_contains_cesu8(regex)) {
+    int l;
+    char *regex_cesu8 = utf8_to_cesu8(regex, &l);
+    bc = lre_compile(&len, error_msg, sizeof error_msg, regex_cesu8,
+        l, re_flags, NULL);
+    free(regex_cesu8);
+  } else {
+    bc = lre_compile(&len, error_msg, sizeof error_msg, regex,
+        strlen(regex), re_flags, NULL);
+  }
+
   if (!bc) {
     lua_pushnil(lstate);
     lua_pushstring(lstate, error_msg);
