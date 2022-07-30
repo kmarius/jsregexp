@@ -98,6 +98,7 @@ test("𝄞𝄞", "𝄞*", "", {{"𝄞𝄞"}})
 test("𝄞𝄞𐐷𝄞𝄞", "𝄞*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {""}})
 -- vscode actually splits the center unicode character and produces an extra empty match. we don't.
 test("öö𐐷öö", "ö*", "g", {{"öö"}, {""}, {"öö"}, {""}})
+test("a", "𝄞|a", "g", {{"a"}}) -- utf16 regex, ascii input
 
 test("dummy", "(dummy)", "", {{"dummy", groups = {"dummy"}}})
 

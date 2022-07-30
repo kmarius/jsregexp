@@ -84,103 +84,142 @@ static int regex_closure(lua_State *lstate)
   const uint8_t *input = (uint8_t *) luaL_checkstring(lstate, 1);
   const int input_len = strlen((char *) input);
 
-  // index of the (first) corresponding char in the utf8 string
-  uint32_t *indices = malloc((input_len+1) * sizeof *indices);
-  uint16_t *input_utf16 = malloc((input_len+1) * sizeof *input_utf16);
-
-  /* fprintf(stderr, "--- input UTF8:\n"); */
-  /* print_bytes_utf8(input); */
-
-  // convert input string to utf16
-  int input_utf16_len = 0;
-  {
-    const uint8_t *pos = (const uint8_t *) input;
-    while (*pos) {
-      indices[input_utf16_len] = pos - input;
-      int c = unicode_from_utf8(pos, UTF8_CHAR_LEN_MAX, &pos);
-      if ((unsigned) c > 0xffff) {
-        input_utf16[input_utf16_len++] = (((c - 0x10000) >> 10) | (0xd8 << 8));
-        input_utf16[input_utf16_len++] = (c & 0xfffff) | (0xdc << 8);
-      } else {
-        input_utf16[input_utf16_len++] = c & 0xffff;
-      }
-    }
-    input_utf16[input_utf16_len] = 0;
-    indices[input_utf16_len] = input_len;
-  }
-
-  /* fprintf(stderr, "--- input UTF16:\n"); */
-  /* print_bytes_utf16(input); */
-
   lua_newtable(lstate);
 
   int nmatch = 0;
-
   int cindex = 0;
-  while (lre_exec(capture, r->bc, (uint8_t *) input_utf16, cindex, input_utf16_len, 1, NULL) == 1) {
 
-    if (capture[0] == capture[1]) {
-      // empty match -> continue matching from next character (to prevent an endless loop).
-      // This is basically the same implementation as in quickjs, see
-      // https://github.com/bellard/quickjs/blob/2788d71e823b522b178db3b3660ce93689534e6d/quickjs.c#L42857-L42869
+  if (utf8_contains_non_ascii((char *) input)) {
+    // index of the (first) corresponding char in the utf8 string
+    uint32_t *indices = malloc((input_len+1) * sizeof *indices);
+    uint16_t *input_utf16 = malloc((input_len+1) * sizeof *input_utf16);
 
-      cindex++;
-      if ((*(input_utf16 + cindex) >> 10) == 0x37) {
-        // surrogate pair (vscode doesn't always do this)
-        cindex++;
-      }
-    } else {
-      cindex = (capture[1] - (uint8_t *) input_utf16) / 2;
-    }
-
-    lua_newtable(lstate);
-
-    lua_pushnumber(lstate, indices[(capture[0] - (uint8_t *) input_utf16) / 2]);
-    lua_setfield(lstate, -2, "begin_ind");
-
-    lua_pushnumber(lstate, indices[(capture[1] - (uint8_t *) input_utf16) / 2]);
-    lua_setfield(lstate, -2, "end_ind");
-
-    lua_newtable(lstate);
-
-    const char* group_names = NULL;
-    if (named_groups) {
-      lua_newtable(lstate);
-      group_names = lre_get_groupnames(r->bc);
-    }
-    for (int i = 1; i < capture_count; i++) {
-      uint16_t a = indices[(capture[2*i] - (uint8_t *) input_utf16) / 2];
-      uint16_t b = indices[(capture[2*i+1] - (uint8_t *) input_utf16) / 2];
-      lua_pushlstring(lstate, (char *) input+a, b-a);
-      lua_rawseti(lstate, -2, i);
-      if (named_groups && group_names != NULL) {
-        if (*group_names != '\0') { // check if current group is named
-          lua_pushlstring(lstate, (char *) capture[2 * i], capture[2 * i + 1] - capture[2 * i]);
-          lua_setfield(lstate, -3, group_names);
-          group_names += strlen(group_names) + 1;  // move to the next group name
+    // convert input string to utf16
+    int input_utf16_len = 0;
+    {
+      const uint8_t *pos = (const uint8_t *) input;
+      while (*pos) {
+        indices[input_utf16_len] = pos - input;
+        int c = unicode_from_utf8(pos, UTF8_CHAR_LEN_MAX, &pos);
+        if ((unsigned) c > 0xffff) {
+          input_utf16[input_utf16_len++] = (((c - 0x10000) >> 10) | (0xd8 << 8));
+          input_utf16[input_utf16_len++] = (c & 0xfffff) | (0xdc << 8);
         } else {
-          group_names += 1; // move to the next group name
+          input_utf16[input_utf16_len++] = c & 0xffff;
         }
-      } 
+      }
+      input_utf16[input_utf16_len] = 0;
+      indices[input_utf16_len] = input_len;
     }
 
-    if (named_groups) {
-      lua_setfield(lstate, -3, "groups");
-      lua_setfield(lstate, -2, "named_groups");
-    } else {
-      lua_setfield(lstate, -2, "groups");
+    while (lre_exec(capture, r->bc, (uint8_t *) input_utf16, cindex, input_utf16_len, 1, NULL) == 1) {
+      if (capture[0] == capture[1]) {
+        // empty match -> continue matching from next character (to prevent an endless loop).
+        // This is basically the same implementation as in quickjs, see
+        // https://github.com/bellard/quickjs/blob/2788d71e823b522b178db3b3660ce93689534e6d/quickjs.c#L42857-L42869
+
+        cindex++;
+        if ((*(input_utf16 + cindex) >> 10) == 0x37) {
+          // surrogate pair (vscode doesn't always do this)
+          cindex++;
+        }
+      } else {
+        cindex = (capture[1] - (uint8_t *) input_utf16) / 2;
+      }
+
+      lua_newtable(lstate);
+
+      lua_pushnumber(lstate, 1 + indices[(capture[0] - (uint8_t *) input_utf16) / 2]);
+      lua_setfield(lstate, -2, "begin_ind");
+
+      lua_pushnumber(lstate, indices[(capture[1] - (uint8_t *) input_utf16) / 2]);
+      lua_setfield(lstate, -2, "end_ind");
+
+      lua_newtable(lstate);
+
+      const char* group_names = NULL;
+      if (named_groups) {
+        lua_newtable(lstate);
+        group_names = lre_get_groupnames(r->bc);
+      }
+      for (int i = 1; i < capture_count; i++) {
+        uint16_t a = indices[(capture[2*i] - (uint8_t *) input_utf16) / 2];
+        uint16_t b = indices[(capture[2*i+1] - (uint8_t *) input_utf16) / 2];
+        lua_pushlstring(lstate, (char *) input+a, b-a);
+        lua_rawseti(lstate, -2, i);
+        if (named_groups && group_names != NULL) {
+          if (*group_names != '\0') { // check if current group is named
+            lua_pushlstring(lstate, (char *) input+a, b-a);
+            lua_setfield(lstate, -3, group_names);
+            group_names += strlen(group_names) + 1;  // move to the next group name
+          } else {
+            group_names += 1; // move to the next group name
+          }
+        }
+      }
+
+      if (named_groups) {
+        lua_setfield(lstate, -3, "groups");
+        lua_setfield(lstate, -2, "named_groups");
+      } else {
+        lua_setfield(lstate, -2, "groups");
+      }
+
+      lua_rawseti(lstate, -2, ++nmatch);
+
+      if (!global || cindex > input_utf16_len) {
+        break;
+      }
     }
 
-    lua_rawseti(lstate, -2, ++nmatch);
+    free(input_utf16);
+    free(indices);
+  } else {
+    while (lre_exec(capture, r->bc, input, cindex, input_len, 0, NULL) == 1) {
+      if (capture[0] == capture[1]) {
+        // +1 works for ascii
+        ++cindex;
+      } else {
+        cindex = capture[1] - input;
+      }
 
-    if (!global || cindex > input_utf16_len) {
-      break;
+      lua_newtable(lstate);
+      lua_newtable(lstate);
+
+      const char* group_names = NULL;
+      if (named_groups) {
+        lua_newtable(lstate);
+        group_names = lre_get_groupnames(r->bc);
+      }
+      for (int i = 1; i < capture_count; i++) {
+        lua_pushlstring(lstate, (char *) capture[2 * i], capture[2 * i + 1] - capture[2 * i]);
+        lua_rawseti(lstate, -2, i);
+        if (named_groups && group_names != NULL) {
+          if (*group_names != '\0') { // check if current group is named
+            lua_pushlstring(lstate, (char *) capture[2 * i], capture[2 * i + 1] - capture[2 * i]);
+            lua_setfield(lstate, -3, group_names);
+            group_names += strlen(group_names) + 1;  // move to the next group name
+          } else {
+            group_names += 1; // move to the next group name
+          }
+        }
+      }
+
+      if (named_groups) {
+        lua_setfield(lstate, -3, "groups");
+        lua_setfield(lstate, -2, "named_groups");
+      } else {
+        lua_setfield(lstate, -2, "groups");
+        lua_setfield(lstate, -2, "groups");
+
+        lua_rawseti(lstate, -2, ++nmatch);
+
+        if (!global || cindex > input_len) {
+          break;
+        }
+      }
     }
   }
-
-  free(input_utf16);
-  free(indices);
-
   return 1;
 }
 
