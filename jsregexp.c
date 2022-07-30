@@ -32,9 +32,8 @@ struct regex {
 // libregex expects the regex encoded as CESU8: https://en.wikipedia.org/wiki/CESU-8
 // (utf16 didn't work)
 
-// check for bytes larger or equal to 0xF0, the corresponding code point gets encoded
-// with 3 bytes in CESU8
-static inline bool utf8_contains_cesu8(const char *s)
+// check for bytes higher or equal to 0xf0
+static inline bool utf8_contains_non_bmp(const char *s)
 {
   uint8_t *q = (uint8_t *) s;
   while (*q) {
@@ -48,6 +47,10 @@ static inline bool utf8_contains_cesu8(const char *s)
 
 // TODO: we assume valid utf8 here, think about at least checking if the string
 // doesn't end and we access unknown memory
+
+// cesu8 coincides with utf8 for the bmp. Codepoints above that (4 utf8 code units)
+// are encoded with 6 bytes where each pair of 3 bytes encodes the corresponding
+// utf16 code unit
 static inline char *utf8_to_cesu8(const char *src, int *l)
 {
   char *str = malloc(3 * strlen(src) / 2 + 1);
@@ -57,11 +60,17 @@ static inline char *utf8_to_cesu8(const char *src, int *l)
     if ((*src & 0xf0) != 0xf0) {
       *q++ = *src++;
     } else  {
-      // next four bytes
-      int c = (*src++ & 0x07) << 18;
-      c |= (*src++ & 0x3f) << 12;
-      c |= (*src++ & 0x3f) << 6;
-      c |= *src++ & 0x3f;
+      if (*(src+1) == 0 || *(src+2) == 0 || *(src+3) == 0) {
+        // to few code units at the end of the string
+        // lre_compile should complain about malformed unicode in other cases
+        return NULL;
+      }
+      int c = (*src & 0x07) << 18;
+      c |= (*(src+1) & 0x3f) << 12;
+      c |= (*(src+2) & 0x3f) << 6;
+      c |= *(src+3) & 0x3f;
+
+      src += 4;
 
       *q++ = 0xed;
       *q++ = 0xa0 | ((c & 0x1f0000) >> 16) - 1;
@@ -79,10 +88,10 @@ static inline char *utf8_to_cesu8(const char *src, int *l)
 }
 
 
-static inline bool utf8_contains_unicode(const char *s)
+static inline bool utf8_contains_non_ascii(const char *s)
 {
   while (*s) {
-    if (*s++ & (1 << 7)) {
+    if (*s++ & 0x80) {
       return true;
     }
   }
@@ -257,14 +266,18 @@ static int jsregexp_compile(lua_State *lstate)
     }
   }
 
-  uint8_t *bc;
+  uint8_t *bc = NULL;
 
-  if (utf8_contains_cesu8(regex)) {
+  if (utf8_contains_non_bmp(regex)) {
     int l;
     char *regex_cesu8 = utf8_to_cesu8(regex, &l);
-    bc = lre_compile(&len, error_msg, sizeof error_msg, regex_cesu8,
-        l, re_flags, NULL);
-    free(regex_cesu8);
+    if (!regex_cesu8) {
+      strncpy(error_msg, "malformed unicode", sizeof error_msg);
+    } else {
+      bc = lre_compile(&len, error_msg, sizeof error_msg, regex_cesu8,
+          l, re_flags, NULL);
+      free(regex_cesu8);
+    }
   } else {
     bc = lre_compile(&len, error_msg, sizeof error_msg, regex,
         strlen(regex), re_flags, NULL);
