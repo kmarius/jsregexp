@@ -72,6 +72,33 @@ static inline bool utf8_contains_non_ascii(const char *s)
 }
 
 
+static inline uint16_t *utf8_to_utf16(const uint8_t *input, uint32_t n, int *utf16_len, uint32_t **indices) {
+  *indices = malloc((n+1) * sizeof *indices);
+  uint16_t *str = malloc((n+1) * sizeof *str);
+  uint16_t *q = str;
+
+  const uint8_t *pos = input;
+  while (*pos) {
+    (*indices)[q-str] = pos - input;
+    int c = unicode_from_utf8(pos, UTF8_CHAR_LEN_MAX, &pos);
+    if (c == -1) {
+      // malformed, do something
+    }
+    if ((unsigned) c > 0xffff) {
+      *q++ = (((c - 0x10000) >> 10) | (0xd8 << 8));
+      *q++ = (c & 0xfffff) | (0xdc << 8);
+    } else {
+      *q++ = c & 0xffff;
+    }
+  }
+  *q = 0;
+  (*indices)[q - str] = n;
+
+  *utf16_len = q - str;
+  return str;
+}
+
+
 static int regex_closure(lua_State *lstate)
 {
   uint8_t *capture[CAPTURE_COUNT_MAX * 2];
@@ -90,27 +117,9 @@ static int regex_closure(lua_State *lstate)
   int cindex = 0;
 
   if (utf8_contains_non_ascii((char *) input)) {
-    // index of the (first) corresponding char in the utf8 string
-    uint32_t *indices = malloc((input_len+1) * sizeof *indices);
-    uint16_t *input_utf16 = malloc((input_len+1) * sizeof *input_utf16);
-
-    // convert input string to utf16
-    int input_utf16_len = 0;
-    {
-      const uint8_t *pos = (const uint8_t *) input;
-      while (*pos) {
-        indices[input_utf16_len] = pos - input;
-        int c = unicode_from_utf8(pos, UTF8_CHAR_LEN_MAX, &pos);
-        if ((unsigned) c > 0xffff) {
-          input_utf16[input_utf16_len++] = (((c - 0x10000) >> 10) | (0xd8 << 8));
-          input_utf16[input_utf16_len++] = (c & 0xfffff) | (0xdc << 8);
-        } else {
-          input_utf16[input_utf16_len++] = c & 0xffff;
-        }
-      }
-      input_utf16[input_utf16_len] = 0;
-      indices[input_utf16_len] = input_len;
-    }
+    uint32_t *indices;
+    int input_utf16_len;
+    uint16_t *input_utf16 = utf8_to_utf16(input, input_len, &input_utf16_len, &indices);
 
     while (lre_exec(capture, r->bc, (uint8_t *) input_utf16, cindex, input_utf16_len, 1, NULL) == 1) {
       if (capture[0] == capture[1]) {
@@ -178,7 +187,7 @@ static int regex_closure(lua_State *lstate)
     while (lre_exec(capture, r->bc, input, cindex, input_len, 0, NULL) == 1) {
       if (capture[0] == capture[1]) {
         // +1 works for ascii
-        ++cindex;
+        cindex++;
       } else {
         cindex = capture[1] - input;
       }
