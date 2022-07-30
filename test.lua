@@ -91,10 +91,13 @@ test("öäü.haha", "([^.]*)\\.(.*)", "", {{"öäü.haha", groups={"öäü", "ha
 test("𝄞", "𝄞(", "", nil)
 test("𝄞", "𝄞", "", {{"𝄞"}})
 -- these empty matches are expected and consistent with vscode
-test("𝄞𝄞 𝄞𝄞", "[^ ]*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {""}})
-test("𝄞𝄞 𝄞𝄞", "[𝄞]*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {""}}) -- doesn't work without [] in libregexp
-test("𝄞𝄞𐐷𝄞𝄞", "[𝄞]*", "g", {{"𝄞𝄞"}, {""}, {""}, {"𝄞𝄞"}, {""}})
 test("öö öö", "ö*", "g", {{"öö"}, {""}, {"öö"}, {""}})
+test("𝄞𝄞 𝄞𝄞", "[^ ]*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {""}})
+test("𝄞𝄞", "𝄞*", "", {{"𝄞𝄞"}})
+-- doesn't work in vscode, matches only a single 𝄞 each time:
+test("𝄞𝄞𐐷𝄞𝄞", "𝄞*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {""}})
+-- vscode actually splits the center unicode character and produces an extra empty match. we don't.
+test("öö𐐷öö", "ö*", "g", {{"öö"}, {""}, {"öö"}, {""}})
 
 test("dummy", "(dummy)", "", {{"dummy", groups = {"dummy"}}})
 

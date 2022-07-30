@@ -29,8 +29,24 @@ struct regex {
 };
 
 
-// libregex expects the regex encoded as CESU8: https://en.wikipedia.org/wiki/CESU-8
-// (utf16 didn't work)
+static inline void print_bytes_utf16(const uint16_t *c)
+{
+  while (*c) {
+    const uint8_t *chars = (uint8_t*) c;
+    fprintf(stderr, "%02hhx %02hhx : %u\n", *chars, *(chars+1), *c);
+    c++;
+  }
+}
+
+
+static inline void print_bytes_utf8(const uint8_t *c)
+{
+  while (*c) {
+    fprintf(stderr, "%hhx : %u\n", *c, *c);
+    c++;
+  }
+}
+
 
 // check for bytes higher or equal to 0xf0
 static inline bool utf8_contains_non_bmp(const char *s)
@@ -42,49 +58,6 @@ static inline bool utf8_contains_non_bmp(const char *s)
     }
   }
   return false;
-}
-
-
-// TODO: we assume valid utf8 here, think about at least checking if the string
-// doesn't end and we access unknown memory
-
-// cesu8 coincides with utf8 for the bmp. Codepoints above that (4 utf8 code units)
-// are encoded with 6 bytes where each pair of 3 bytes encodes the corresponding
-// utf16 code unit
-static inline char *utf8_to_cesu8(const char *src, int *l)
-{
-  char *str = malloc(3 * strlen(src) / 2 + 1);
-  char *q = str;
-
-  while (*src) {
-    if ((*src & 0xf0) != 0xf0) {
-      *q++ = *src++;
-    } else  {
-      if (*(src+1) == 0 || *(src+2) == 0 || *(src+3) == 0) {
-        // to few code units at the end of the string
-        // lre_compile should complain about malformed unicode in other cases
-        return NULL;
-      }
-      int c = (*src & 0x07) << 18;
-      c |= (*(src+1) & 0x3f) << 12;
-      c |= (*(src+2) & 0x3f) << 6;
-      c |= *(src+3) & 0x3f;
-
-      src += 4;
-
-      *q++ = 0xed;
-      *q++ = 0xa0 | ((c & 0x1f0000) >> 16) - 1;
-      *q++ = 0x80 | ((c & 0xfc00) >> 10);
-
-      *q++ = 0xed;
-      *q++ = 0xb0 | ((c & 0x3c0) >> 6);
-      *q++ = 0x80 | c & 0x3f;
-    }
-  }
-  *q = 0;
-
-  *l = q - str;
-  return str;
 }
 
 
@@ -115,14 +88,8 @@ static int regex_closure(lua_State *lstate)
   uint32_t *indices = malloc((input_len+1) * sizeof *indices);
   uint16_t *input_utf16 = malloc((input_len+1) * sizeof *input_utf16);
 
-  /* { */
-  /*   fprintf(stderr, "--- input:\n"); */
-  /*   const uint8_t *c = input; */
-  /*   while (*c) { */
-  /*     fprintf(stderr, "%hhx : %u\n", *c, *c); */
-  /*     c++; */
-  /*   } */
-  /* } */
+  /* fprintf(stderr, "--- input UTF8:\n"); */
+  /* print_bytes_utf8(input); */
 
   // convert input string to utf16
   int input_utf16_len = 0;
@@ -142,15 +109,8 @@ static int regex_closure(lua_State *lstate)
     indices[input_utf16_len] = input_len;
   }
 
-  /* { */
-  /*   const uint16_t *c = input_utf16; */
-  /*   fprintf(stderr, "--- input UTF16:\n"); */
-  /*   while (*c) { */
-  /*     const uint8_t *chars = (uint8_t*) c; */
-  /*     fprintf(stderr, "%02hhx %02hhx : %u\n", *chars, *(chars+1), *c); */
-  /*     c++; */
-  /*   } */
-  /* } */
+  /* fprintf(stderr, "--- input UTF16:\n"); */
+  /* print_bytes_utf16(input); */
 
   lua_newtable(lstate);
 
@@ -164,8 +124,11 @@ static int regex_closure(lua_State *lstate)
       // This is basically the same implementation as in quickjs, see
       // https://github.com/bellard/quickjs/blob/2788d71e823b522b178db3b3660ce93689534e6d/quickjs.c#L42857-L42869
 
-      // +1 works for ascii, take a closer look for unicode
       cindex++;
+      if ((*(input_utf16 + cindex) >> 10) == 0x37) {
+        // surrogate pair (vscode doesn't always do this)
+        cindex++;
+      }
     } else {
       cindex = (capture[1] - (uint8_t *) input_utf16) / 2;
     }
@@ -177,9 +140,6 @@ static int regex_closure(lua_State *lstate)
 
     lua_pushnumber(lstate, indices[(capture[1] - (uint8_t *) input_utf16) / 2]);
     lua_setfield(lstate, -2, "end_ind");
-
-    /* lua_pushnumber(lstate, capture[1] - capture[0]); */
-    /* lua_setfield(lstate, -2, "length"); */
 
     lua_newtable(lstate);
 
@@ -266,22 +226,13 @@ static int jsregexp_compile(lua_State *lstate)
     }
   }
 
-  uint8_t *bc = NULL;
-
   if (utf8_contains_non_bmp(regex)) {
-    int l;
-    char *regex_cesu8 = utf8_to_cesu8(regex, &l);
-    if (!regex_cesu8) {
-      strncpy(error_msg, "malformed unicode", sizeof error_msg);
-    } else {
-      bc = lre_compile(&len, error_msg, sizeof error_msg, regex_cesu8,
-          l, re_flags, NULL);
-      free(regex_cesu8);
-    }
-  } else {
-    bc = lre_compile(&len, error_msg, sizeof error_msg, regex,
-        strlen(regex), re_flags, NULL);
+    // bmp range works fine without utf16 flag
+    re_flags |= LRE_FLAG_UTF16;
   }
+
+  uint8_t *bc = lre_compile(&len, error_msg, sizeof error_msg, regex,
+      strlen(regex), re_flags, NULL);
 
   if (!bc) {
     lua_pushnil(lstate);
