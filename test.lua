@@ -88,9 +88,13 @@ test("äöü", "[äöü]*", "g", {{"äöü"}, {""}})
 test("äÄ", "ä", "gi", {{"ä"}, {"Ä"}})
 test("öäü.haha", "([^.]*)\\.(.*)", "", {{"öäü.haha", groups={"öäü", "haha"}}})
 
--- multiple utf16 codepoints, doesn't compile
-test("𝄞", "𝄞", "", {{"𝄞"}})
 test("𝄞", "𝄞(", "", nil)
+test("𝄞", "𝄞", "", {{"𝄞"}})
+-- these empty matches are expected and consistent with vscode
+test("𝄞𝄞 𝄞𝄞", "[^ ]*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {""}})
+test("𝄞𝄞 𝄞𝄞", "[𝄞]*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {""}}) -- doesn't work without [] in libregexp
+test("𝄞𝄞𐐷𝄞𝄞", "[𝄞]*", "g", {{"𝄞𝄞"}, {""}, {""}, {"𝄞𝄞"}, {""}})
+test("öö öö", "ö*", "g", {{"öö"}, {""}, {"öö"}, {""}})
 
 test("dummy", "(dummy)", "", {{"dummy", groups = {"dummy"}}})
 
