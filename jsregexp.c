@@ -193,6 +193,13 @@ static int regex_closure(lua_State *lstate)
       }
 
       lua_newtable(lstate);
+
+      lua_pushnumber(lstate, 1 + capture[0] - input);
+      lua_setfield(lstate, -2, "begin_ind");
+
+      lua_pushnumber(lstate, capture[1] - input);
+      lua_setfield(lstate, -2, "end_ind");
+
       lua_newtable(lstate);
 
       const char* group_names = NULL;
@@ -219,13 +226,12 @@ static int regex_closure(lua_State *lstate)
         lua_setfield(lstate, -2, "named_groups");
       } else {
         lua_setfield(lstate, -2, "groups");
-        lua_setfield(lstate, -2, "groups");
+      }
 
-        lua_rawseti(lstate, -2, ++nmatch);
+      lua_rawseti(lstate, -2, ++nmatch);
 
-        if (!global || cindex > input_len) {
-          break;
-        }
+      if (!global || cindex > input_len) {
+        break;
       }
     }
   }
