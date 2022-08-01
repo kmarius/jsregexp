@@ -1,9 +1,9 @@
 package = "jsregexp"
-version = "0.0.2-2"
+version = "0.0.3-1"
 source = {
 	url = "git://github.com/kmarius/jsregexp.git",
 	branch = "master",
-	tag = "v0.0.2",
+	tag = "v0.0.3",
 }
 description = {
 	summary = "javascript (ECMA19) regular expressions for lua(snip)",
