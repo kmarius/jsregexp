@@ -7,3 +7,4 @@ tags
 tags.lock
 tags.temp
 *.src.rock
+.yabs
