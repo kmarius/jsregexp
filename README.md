@@ -9,11 +9,11 @@ If you intend to use `jsregexp` in neovim you can place
 ```lua
 use_rocks 'jsregexp'
 ```
-    
+
 in the function passed to `packer.startup`.
 
 To install `jsregexp` globally with [luarocks](https://luarocks.org/modules/kmarius/jsregexp),
-run 
+run
 ```bash
 sudo luarocks --lua-version 5.1 install jsregexp
 ```
@@ -43,7 +43,7 @@ Each `match` consists of a table with the fields
 
 ```lua
 match.begin_ind  -- begin of the match
-match.end_ind    -- end of the match, points at the character following the match (possibly subject to change)
+match.end_ind    -- end of the match, points at the last character (or byte, if non-ascii)
 match.groups     -- a table containing the strings of the match group corresponding to the index
 ```
 
@@ -61,7 +61,7 @@ local str = "Hello World"
 local matches = regex(str)
 
 for i, match in ipairs(matches) do
-	print(string.format("match %d: %s", i, str:sub(match.begin_ind, match.end_ind-1)))
+	print(string.format("match %d: %s", i, str:sub(match.begin_ind, match.end_ind)))
 	if #match.groups > 0 then
 		print("capture groups:")
 		for j, group in ipairs(match.groups) do

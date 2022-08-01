@@ -21,7 +21,7 @@ local function test(str, regex, flags, want)
 				fails = fails + 1
 				return
 			end
-			local match = string.sub(str, val.begin_ind, val.end_ind-1)
+			local match = string.sub(str, val.begin_ind, val.end_ind)
 			if match ~= want[1] then
 				fails = fails + 1
 				print(match, want[1])
