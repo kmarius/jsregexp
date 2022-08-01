@@ -48,11 +48,8 @@ static int regex_closure(lua_State *lstate)
     lua_pushnumber(lstate, 1 + capture[0] - input);
     lua_setfield(lstate, -2, "begin_ind");
 
-    lua_pushnumber(lstate, 1 + capture[1] - input);
+    lua_pushnumber(lstate, capture[1] - input);
     lua_setfield(lstate, -2, "end_ind");
-
-    lua_pushnumber(lstate, capture[1] - capture[0]);
-    lua_setfield(lstate, -2, "length");
 
     lua_newtable(lstate);
     for (int i = 1; i < capture_count; i++) {
