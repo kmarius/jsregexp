@@ -20,7 +20,8 @@ jobs:
             "luajit-2.0.5",
             "luajit-2.1.0-beta3",
           ]
-        machineTag: ["ubuntu-latest", "macos-latest", "windows-latest"]
+          # TODO: add windows-latest once: https://github.com/leafo/gh-actions-lua/pull/23 is fully released
+        machineTag: ["ubuntu-latest", "macos-latest"]
     runs-on: ${{ matrix.machineTag }}
     steps:
       - uses: actions/checkout@v2
