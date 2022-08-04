@@ -17,7 +17,9 @@
 #define lua_tbl_len(L, arg) (lua_objlen(L, arg))
 #endif
 
-
+#if LUA_VERSION_NUM < 503
+#define lua_pushinteger(L, n) lua_pushinteger(L, n)
+#endif
 
 struct regex {
   uint8_t *bc;
@@ -55,10 +57,10 @@ static int regex_closure(lua_State *lstate)
 
     lua_newtable(lstate);
 
-    lua_pushnumber(lstate, 1 + capture[0] - input);
+    lua_pushinteger(lstate, 1 + capture[0] - input);
     lua_setfield(lstate, -2, "begin_ind");
 
-    lua_pushnumber(lstate, capture[1] - input);
+    lua_pushinteger(lstate, capture[1] - input);
     lua_setfield(lstate, -2, "end_ind");
 
     lua_newtable(lstate);
