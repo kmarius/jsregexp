@@ -32,6 +32,11 @@ local function test(str, regex, flags, want)
 					fails = fails + 1
 					return
 				end
+				for j, v in pairs(val.groups) do
+					if v ~= want.groups[j] then
+						fails = fails + 1
+					end
+				end
 			else
 				if want.groups and #want.groups > 0 then
 					fails = fails + 1
@@ -86,7 +91,7 @@ test("The quick brown fox jumps over the lazy dog", "\\w+", "g", {{"The"}, {"qui
 test("The quick brown fox jumps over the lazy dog", "[aeiou]{2,}", "g", {{"ui"}})
 
 test("The quick brown fox jumps over the lazy dog", "(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)", "n",
-	{{"The quick brown", groups={"The", "quick", "brown"}, named_groups={first_word="The", third_word="brown2"}}}
+	{{"The quick brown", groups={"The", "quick", "brown"}, named_groups={first_word="The", third_word="brown"}}}
 )
 
 local bold_green = "\27[1;32m"
