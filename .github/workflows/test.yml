@@ -1,0 +1,38 @@
+name: test
+
+on:
+  push:
+    branches:
+      - "master"
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: true
+      matrix:
+        luaVersion:
+          [
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "luajit-2.0.5",
+            "luajit-2.1.0-beta3",
+          ]
+          # TODO: add windows-latest once: https://github.com/leafo/gh-actions-lua/pull/23 is fully released
+        machineTag: ["ubuntu-latest", "macos-latest"]
+    runs-on: ${{ matrix.machineTag }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: leafo/gh-actions-lua@v9
+        with:
+          luaVersion: ${{ matrix.luaVersion }}
+      - uses: leafo/gh-actions-luarocks@v4
+        with:
+          luarocksVersion: "3.9.1"
+      - name: build
+        run: |
+          luarocks make
+      - name: test
+        run: lua test.lua

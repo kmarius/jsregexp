@@ -14,7 +14,7 @@ WIP: This library offers a single function to use javascript regular expressions
 	license = "MIT"
 }
 dependencies = {
-	"lua == 5.1",
+	"lua >= 5.1",
 }
 build = {
 	type = "builtin",
