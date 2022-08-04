@@ -1,12 +1,12 @@
 package = "jsregexp"
-version = "0.0.3-1"
+version = "0.0.4-1"
 source = {
 	url = "git://github.com/kmarius/jsregexp.git",
 	branch = "master",
-	tag = "v0.0.3",
+	tag = "v0.0.4",
 }
 description = {
-	summary = "javascript (ECMA19) regular expressions for lua(snip)",
+	summary = "javascript (ECMA19) regular expressions for lua",
 	detailed = [[
 WIP: This library offers a single function to use javascript regular expressions in lua. It makes use of libregexp from https://bellard.org/quickjs/.
 	]],
