@@ -77,6 +77,8 @@ test("The quick brown fox jumps over the lazy dog", "\\w+", "", {{"The"}})
 test("The quick brown fox jumps over the lazy dog", "\\w+", "g", {{"The"}, {"quick"}, {"brown"}, {"fox"}, {"jumps"}, {"over"}, {"the"}, {"lazy"}, {"dog"}})
 test("The quick brown fox jumps over the lazy dog", "[aeiou]{2,}", "g", {{"ui"}})
 
+test("The quick brown fox jumps over the lazy dog", "(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)", "n", {{"The quick brown", groups={first_word="The", third_word={"brown"}}}})
+
 local bold_green = "\27[1;32m"
 local bold_red = "\27[1;31m"
 local normal = "\27[0m"
