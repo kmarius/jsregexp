@@ -9,6 +9,16 @@
 
 #define CAPTURE_COUNT_MAX 255 /* from libregexp.c */
 
+#if LUA_VERSION_NUM >= 502
+#define new_lib(L, l) (luaL_newlib(L, l))
+#define lua_tbl_len(L, arg) (lua_rawlen(L, arg))
+#else
+#define new_lib(L, l) (lua_newtable(L), luaL_register(L, NULL, l))
+#define lua_tbl_len(L, arg) (lua_objlen(L, arg))
+#endif
+
+
+
 struct regex {
   uint8_t *bc;
 };
@@ -119,10 +129,9 @@ static int jsregexp_compile(lua_State *lstate)
 
   struct regex *ud = lua_newuserdata(lstate, sizeof *ud);
   ud->bc = bc;
+  
 
-  if (luaL_newmetatable(lstate, "jsregexp_meta")) {
-    luaL_register(lstate, NULL, jsregexp_meta);
-  }
+  luaL_getmetatable(lstate, "jsregexp_meta");
   lua_setmetatable(lstate, -2);
 
   lua_pushcclosure(lstate, regex_closure, 1);
@@ -138,6 +147,13 @@ static const struct luaL_Reg jsregexp_lib[] = {
 
 int luaopen_jsregexp(lua_State *lstate)
 {
-  luaL_openlib(lstate, "jsregexp", jsregexp_lib, 0);
+  new_lib(lstate, jsregexp_lib);
+  luaL_newmetatable(lstate, "jsregexp_meta");
+#if LUA_VERSION_NUM >= 502
+    luaL_setfuncs(lstate, jsregexp_meta, 0);
+#else
+    luaL_register(L, NULL, jsregexp_meta);
+#endif
+  lua_pop(lstate, 1);
   return 1;
 }
