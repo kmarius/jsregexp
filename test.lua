@@ -27,15 +27,24 @@ local function test(str, regex, flags, want)
 				print(match, want[1])
 				return
 			end
-			if #val.groups > 0 then
-				if not want.groups or #want.groups ~= #val.groups then
+			if next(val.groups) ~= nil then
+				if not want.groups then
 					fails = fails + 1
 					return
 				end
+				local val_group_count = 0
 				for j, v in pairs(val.groups) do
+					val_group_count =  val_group_count + 1
 					if v ~= want.groups[j] then
 						fails = fails + 1
 					end
+				end
+				local want_group_count = 0
+				for _,_ in pairs(want.groups) do
+					want_group_count = want_group_count + 1
+				end
+				if val_group_count ~= want_group_count then
+					fails = fails + 1
 				end
 			else
 				if want.groups and #want.groups > 0 then
@@ -77,7 +86,7 @@ test("The quick brown fox jumps over the lazy dog", "\\w+", "", {{"The"}})
 test("The quick brown fox jumps over the lazy dog", "\\w+", "g", {{"The"}, {"quick"}, {"brown"}, {"fox"}, {"jumps"}, {"over"}, {"the"}, {"lazy"}, {"dog"}})
 test("The quick brown fox jumps over the lazy dog", "[aeiou]{2,}", "g", {{"ui"}})
 
-test("The quick brown fox jumps over the lazy dog", "(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)", "n", {{"The quick brown", groups={first_word="The", third_word={"brown"}}}})
+test("The quick brown fox jumps over the lazy dog", "(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)", "n", {{"The quick brown", groups={first_word="The", [2]="quick", third_word="brown"}}})
 
 local bold_green = "\27[1;32m"
 local bold_red = "\27[1;31m"
