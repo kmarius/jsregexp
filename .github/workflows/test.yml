@@ -34,6 +34,6 @@ jobs:
           luarocksVersion: "3.8.0"
       - name: build
         run: |
-          make build
+          luarocks make
       - name: test
         run: lua test.lua
