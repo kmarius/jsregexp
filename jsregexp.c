@@ -152,7 +152,7 @@ int luaopen_jsregexp(lua_State *lstate)
 #if LUA_VERSION_NUM >= 502
     luaL_setfuncs(lstate, jsregexp_meta, 0);
 #else
-    luaL_register(L, NULL, jsregexp_meta);
+    luaL_register(lstate, NULL, jsregexp_meta);
 #endif
   lua_pop(lstate, 1);
   return 1;
