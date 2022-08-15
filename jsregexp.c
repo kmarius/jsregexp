@@ -278,6 +278,14 @@ static int jsregexp_compile(lua_State *lstate)
 
   const char *regex = luaL_checkstring(lstate, 1);
 
+  // lre_compile consistently segfaults if the input contains 0x8f, which
+  // indicated the beginning of a six byte sequence, but is now illegal.
+  if (strchr(regex, 0xfd)) {
+    lua_pushnil(lstate);
+    lua_pushstring(lstate, "malformed unicode");
+    return 2;
+  }
+
   if (!lua_isnoneornil(lstate, 2)) {
     const char *flags = luaL_checkstring(lstate, 2);
     while (*flags) {
@@ -327,9 +335,9 @@ int luaopen_jsregexp(lua_State *lstate)
   new_lib(lstate, jsregexp_lib);
   luaL_newmetatable(lstate, "jsregexp_meta");
 #if LUA_VERSION_NUM >= 502
-    luaL_setfuncs(lstate, jsregexp_meta, 0);
+  luaL_setfuncs(lstate, jsregexp_meta, 0);
 #else
-    luaL_register(lstate, NULL, jsregexp_meta);
+  luaL_register(lstate, NULL, jsregexp_meta);
 #endif
   lua_pop(lstate, 1);
   return 1;
