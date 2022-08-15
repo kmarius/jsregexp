@@ -119,11 +119,12 @@ test("いろはにほへとちりぬるを", "(いろはにほへとちりぬる
 
 test("Съешь же ещё этих мягких французских булок да выпей чаю", "(Съешь же ещё этих мягких французских булок да выпей чаю)", "", {{"Съешь же ещё этих мягких французских булок да выпей чаю", groups={"Съешь же ещё этих мягких французских булок да выпей чаю"}}})
 
--- segfaults in luajit but not lua51
--- test("dummy", ",N" .. string.char(253, 166, 178, 165, 138, 183), "", {})
-
 -- no idea how thai works
 -- test("จงฝ่าฟันพัฒนาวิชาการ", "(จงฝ่าฟันพัฒนาวิชาการ)", "", {{"จงฝ่าฟันพัฒนาวิชาการ", groups="จงฝ่าฟันพัฒนาวิชาการ"}})
+
+-- 0xfd (together with other wird chars) crashes lre_compile if not caught
+-- (luajit at least..)
+test("dummy", string.char(253, 166, 178, 165, 138, 183), "", nil)
 
 test("The quick brown fox jumps over the lazy dog", "(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)", "n",
 	{{"The quick brown", groups={"The", "quick", "brown"}, named_groups={first_word="The", third_word="brown"}}}
