@@ -10,7 +10,7 @@
 #include "cutils.h"
 #include "libregexp.h"
 
-#define CAPTURE_COUNT_MAX 255 /* from libregexp.c */
+#define CAPTURE_COUNT_MAX 255  /* from libregexp.c */
 
 #if LUA_VERSION_NUM >= 502
 #define new_lib(L, l) (luaL_newlib(L, l))
@@ -24,28 +24,9 @@
 #define lua_pushinteger(L, n) lua_pushinteger(L, n)
 #endif
 
-struct regex {
+struct regexp {
   uint8_t *bc;
 };
-
-
-static inline void print_bytes_utf16(const uint16_t *c)
-{
-  while (*c) {
-    const uint8_t *chars = (uint8_t*) c;
-    fprintf(stderr, "%02hhx %02hhx : %u\n", *chars, *(chars+1), *c);
-    c++;
-  }
-}
-
-
-static inline void print_bytes_utf8(const uint8_t *c)
-{
-  while (*c) {
-    fprintf(stderr, "%hhx : %u\n", *c, *c);
-    c++;
-  }
-}
 
 
 // check for bytes higher or equal to 0xf0
@@ -72,8 +53,17 @@ static inline bool utf8_contains_non_ascii(const char *s)
 }
 
 
-static inline uint16_t *utf8_to_utf16(const uint8_t *input, uint32_t n, int *utf16_len, uint32_t **indices) {
-  *indices = malloc((n+1) * sizeof *indices);
+// returns NULL when malformed unicode is encountered, otherwise returns the
+// converted string. *utf16_len will contain the length of the string and
+// *indices an (allocated) array mapping each utf16 code point to the utf8 code
+// point in the input string.
+static inline uint16_t *utf8_to_utf16(
+    const uint8_t *input,
+    uint32_t n,
+    uint32_t *utf16_len,
+    uint32_t **indices)
+{
+  *indices = calloc((n+1), sizeof *indices);
   uint16_t *str = malloc((n+1) * sizeof *str);
   uint16_t *q = str;
 
@@ -102,11 +92,11 @@ static inline uint16_t *utf8_to_utf16(const uint8_t *input, uint32_t n, int *utf
 }
 
 
-static int regex_closure(lua_State *lstate)
+static int regexp_closure(lua_State *lstate)
 {
   uint8_t *capture[CAPTURE_COUNT_MAX * 2];
 
-  struct regex *r = lua_touserdata(lstate, lua_upvalueindex(1));
+  struct regexp *r = lua_touserdata(lstate, lua_upvalueindex(1));
   const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
   const int named_groups = lre_get_flags(r->bc) & LRE_FLAG_NAMED_GROUPS;
   const int capture_count = lre_get_capture_count(r->bc);
@@ -114,23 +104,21 @@ static int regex_closure(lua_State *lstate)
   const uint8_t *input = (uint8_t *) luaL_checkstring(lstate, 1);
   const int input_len = strlen((char *) input);
 
-  lua_newtable(lstate);
-
   int nmatch = 0;
   int cindex = 0;
 
   if (utf8_contains_non_ascii((char *) input)) {
     uint32_t *indices;
-    int input_utf16_len;
+    uint32_t input_utf16_len;
     uint16_t *input_utf16 = utf8_to_utf16(input, input_len, &input_utf16_len, &indices);
 
     if (!input_utf16) {
-      lua_pop(lstate, 1);
       lua_pushnil(lstate);
       lua_pushstring(lstate, "malformed unicode");
       return 2;
     }
 
+    lua_newtable(lstate);
     while (lre_exec(capture, r->bc, (uint8_t *) input_utf16, cindex, input_utf16_len, 1, NULL) == 1) {
       if (capture[0] == capture[1]) {
         // empty match -> continue matching from next character (to prevent an endless loop).
@@ -139,7 +127,7 @@ static int regex_closure(lua_State *lstate)
 
         cindex++;
         if ((*(input_utf16 + cindex) >> 10) == 0x37) {
-          // surrogate pair (vscode doesn't always do this)
+          // surrogate pair (vscode doesn't always do this?)
           cindex++;
         }
       } else {
@@ -162,8 +150,8 @@ static int regex_closure(lua_State *lstate)
         group_names = lre_get_groupnames(r->bc);
       }
       for (int i = 1; i < capture_count; i++) {
-        uint16_t a = indices[(capture[2*i] - (uint8_t *) input_utf16) / 2];
-        uint16_t b = indices[(capture[2*i+1] - (uint8_t *) input_utf16) / 2];
+        const uint32_t a = indices[(capture[2*i] - (uint8_t *) input_utf16) / 2];
+        const uint32_t b = indices[(capture[2*i+1] - (uint8_t *) input_utf16) / 2];
         lua_pushlstring(lstate, (char *) input+a, b-a);
         lua_rawseti(lstate, -2, i);
         if (named_groups && group_names != NULL) {
@@ -194,9 +182,9 @@ static int regex_closure(lua_State *lstate)
     free(input_utf16);
     free(indices);
   } else {
+    lua_newtable(lstate);
     while (lre_exec(capture, r->bc, input, cindex, input_len, 0, NULL) == 1) {
       if (capture[0] == capture[1]) {
-        // +1 works for ascii
         cindex++;
       } else {
         cindex = capture[1] - input;
@@ -251,7 +239,7 @@ static int regex_closure(lua_State *lstate)
 
 static int regexp_gc(lua_State *lstate)
 {
-  struct regex *r = lua_touserdata(lstate, 1);
+  struct regexp *r = lua_touserdata(lstate, 1);
   free(r->bc);
   return 0;
 }
@@ -276,11 +264,11 @@ static int jsregexp_compile(lua_State *lstate)
   char error_msg[64];
   int len, re_flags = 0;
 
-  const char *regex = luaL_checkstring(lstate, 1);
+  const char *regexp = luaL_checkstring(lstate, 1);
 
-  // lre_compile consistently segfaults if the input contains 0x8f, which
+  // lre_compile can segfault if the input contains 0x8f, which
   // indicated the beginning of a six byte sequence, but is now illegal.
-  if (strchr(regex, 0xfd)) {
+  if (strchr(regexp, 0xfd)) {
     lua_pushnil(lstate);
     lua_pushstring(lstate, "malformed unicode");
     return 2;
@@ -298,13 +286,13 @@ static int jsregexp_compile(lua_State *lstate)
     }
   }
 
-  if (utf8_contains_non_bmp(regex)) {
+  if (utf8_contains_non_bmp(regexp)) {
     // bmp range works fine without utf16 flag
     re_flags |= LRE_FLAG_UTF16;
   }
 
-  uint8_t *bc = lre_compile(&len, error_msg, sizeof error_msg, regex,
-      strlen(regex), re_flags, NULL);
+  uint8_t *bc = lre_compile(&len, error_msg, sizeof error_msg, regexp,
+      strlen(regexp), re_flags, NULL);
 
   if (!bc) {
     lua_pushnil(lstate);
@@ -312,14 +300,13 @@ static int jsregexp_compile(lua_State *lstate)
     return 2;
   }
 
-  struct regex *ud = lua_newuserdata(lstate, sizeof *ud);
+  struct regexp *ud = lua_newuserdata(lstate, sizeof *ud);
   ud->bc = bc;
-
 
   luaL_getmetatable(lstate, "jsregexp_meta");
   lua_setmetatable(lstate, -2);
 
-  lua_pushcclosure(lstate, regex_closure, 1);
+  lua_pushcclosure(lstate, regexp_closure, 1);
   return 1;
 }
 
