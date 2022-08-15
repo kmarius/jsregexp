@@ -83,7 +83,9 @@ static inline uint16_t *utf8_to_utf16(const uint8_t *input, uint32_t n, int *utf
     int c = unicode_from_utf8(pos, UTF8_CHAR_LEN_MAX, &pos);
     if (c == -1) {
       // malformed
-      break;
+      free(str);
+      free(*indices);
+      return NULL;
     }
     if ((unsigned) c > 0xffff) {
       *q++ = (((c - 0x10000) >> 10) | (0xd8 << 8));
@@ -121,6 +123,13 @@ static int regex_closure(lua_State *lstate)
     uint32_t *indices;
     int input_utf16_len;
     uint16_t *input_utf16 = utf8_to_utf16(input, input_len, &input_utf16_len, &indices);
+
+    if (!input_utf16) {
+      lua_pop(lstate, 1);
+      lua_pushnil(lstate);
+      lua_pushstring(lstate, "malformed unicode");
+      return 2;
+    }
 
     while (lre_exec(capture, r->bc, (uint8_t *) input_utf16, cindex, input_utf16_len, 1, NULL) == 1) {
       if (capture[0] == capture[1]) {
