@@ -82,7 +82,8 @@ static inline uint16_t *utf8_to_utf16(const uint8_t *input, uint32_t n, int *utf
     (*indices)[q-str] = pos - input;
     int c = unicode_from_utf8(pos, UTF8_CHAR_LEN_MAX, &pos);
     if (c == -1) {
-      // malformed, do something
+      // malformed
+      break;
     }
     if ((unsigned) c > 0xffff) {
       *q++ = (((c - 0x10000) >> 10) | (0xd8 << 8));
