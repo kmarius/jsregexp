@@ -80,6 +80,11 @@ test("dummy", "d", "", {{"d"}})
 test("dummy", "m", "", {{"m"}})
 test("dummy", "m", "g", {{"m"}, {"m"}})
 
+test("dummy", "(dummy)", "", {{"dummy", groups = {"dummy"}}})
+test("The quick brown fox jumps over the lazy dog", "\\w+", "", {{"The"}})
+test("The quick brown fox jumps over the lazy dog", "\\w+", "g", {{"The"}, {"quick"}, {"brown"}, {"fox"}, {"jumps"}, {"over"}, {"the"}, {"lazy"}, {"dog"}})
+test("The quick brown fox jumps over the lazy dog", "[aeiou]{2,}", "g", {{"ui"}})
+
 test("äöü", ".", "g", {{"ä"}, {"ö"}, {"ü"}})
 test("äöü", ".", "", {{"ä"}})
 test("ÄÖÜ", ".", "", {{"Ä"}})
@@ -100,11 +105,22 @@ test("𝄞𝄞𐐷𝄞𝄞", "𝄞*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {"
 test("öö𐐷öö", "ö*", "g", {{"öö"}, {""}, {"öö"}, {""}})
 test("a", "𝄞|a", "g", {{"a"}}) -- utf16 regex, ascii input
 
-test("dummy", "(dummy)", "", {{"dummy", groups = {"dummy"}}})
+test("κόσμε", "(κόσμε)", "", {{"κόσμε", groups={"κόσμε"}}})
 
-test("The quick brown fox jumps over the lazy dog", "\\w+", "", {{"The"}})
-test("The quick brown fox jumps over the lazy dog", "\\w+", "g", {{"The"}, {"quick"}, {"brown"}, {"fox"}, {"jumps"}, {"over"}, {"the"}, {"lazy"}, {"dog"}})
-test("The quick brown fox jumps over the lazy dog", "[aeiou]{2,}", "g", {{"ui"}})
+test("jordbær fløde på", "(jordbær fløde på)", "", {{"jordbær fløde på", groups={"jordbær fløde på"}}})
+
+test("Heizölrückstoßabdämpfung", "(Heizölrückstoßabdämpfung)", "", {{"Heizölrückstoßabdämpfung", groups={"Heizölrückstoßabdämpfung"}}})
+
+test("Fête l'haï volapük", "(Fête l'haï volapük)", "", {{"Fête l'haï volapük", groups={"Fête l'haï volapük"}}})
+
+test("Árvíztűrő tükörfúrógép", "(Árvíztűrő tükörfúrógép)", "", {{"Árvíztűrő tükörfúrógép", groups={"Árvíztűrő tükörfúrógép"}}})
+
+test("いろはにほへとちりぬるを", "(いろはにほへとちりぬるを)", "", {{"いろはにほへとちりぬるを", groups={"いろはにほへとちりぬるを"}}})
+
+test("Съешь же ещё этих мягких французских булок да выпей чаю", "(Съешь же ещё этих мягких французских булок да выпей чаю)", "", {{"Съешь же ещё этих мягких французских булок да выпей чаю", groups={"Съешь же ещё этих мягких французских булок да выпей чаю"}}})
+
+-- no idea how thai works
+-- test("จงฝ่าฟันพัฒนาวิชาการ", "(จงฝ่าฟันพัฒนาวิชาการ)", "", {{"จงฝ่าฟันพัฒนาวิชาการ", groups="จงฝ่าฟันพัฒนาวิชาการ"}})
 
 test("The quick brown fox jumps over the lazy dog", "(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)", "n",
 	{{"The quick brown", groups={"The", "quick", "brown"}, named_groups={first_word="The", third_word="brown"}}}
