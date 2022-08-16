@@ -124,11 +124,20 @@ test("Съешь же ещё этих мягких французских бул
 
 -- 0xfd (together with other wird chars) crashes lre_compile if not caught
 -- (luajit at least..)
-test("dummy", string.char(253, 166, 178, 165, 138, 183), "", nil)
+test("dummy", string.char(0xfd, 166, 178, 165, 138, 183), "", nil)
 
+
+-- named groups:
 test("The quick brown fox jumps over the lazy dog", "(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)", "n",
 	{{"The quick brown", groups={"The", "quick", "brown"}, named_groups={first_word="The", third_word="brown"}}}
 )
+test("The qüick bröwn föx jümps över the lazy dög", "(?<first_word>[^ ]+) ([^ ]+) (?<third_word>[^ ]+)", "n",
+	{{"The qüick bröwn", groups={"The", "qüick", "bröwn"}, named_groups={first_word="The", third_word="bröwn"}}}
+)
+test("The quick bröwn föx", "(?<first_wörd>[^ ]+) ([^ ]+) (?<third_wörd>[^ ]+)", "n",
+	{{"The quick bröwn", groups={"The", "quick", "bröwn"}, named_groups={["first_wörd"]="The", ["third_wörd"]="bröwn"}}}
+)
+test("𝄞𝄞 𐐷", "(?<word>[^ ]+)", "ng", {{"𝄞𝄞", groups={"𝄞𝄞"}, named_groups={word="𝄞𝄞"}}, {"𐐷", groups={"𐐷"}, named_groups={word="𐐷"}}})
 
 local bold_green = "\27[1;32m"
 local bold_red = "\27[1;31m"
