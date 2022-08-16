@@ -43,6 +43,19 @@ local function test(str, regex, flags, want)
 					return
 				end
 			end
+			if want.named_groups ~= nil then
+				if val.named_groups == nil then
+					fails = fails + 1
+					return
+				end
+				for k,v in pairs(want.named_groups) do
+					if val.named_groups[k] ~= v then
+						fails = fails + 1
+						print(string.format("named group mismatch group '%s': expected '%s', actual '%s'", k, v, val.named_groups[k]))
+						return
+					end
+				end
+			end
 		end
 		successes = successes + 1
 	elseif not want and not r then
@@ -76,6 +89,10 @@ test("dummy", "(dummy)", "", {{"dummy", groups = {"dummy"}}})
 test("The quick brown fox jumps over the lazy dog", "\\w+", "", {{"The"}})
 test("The quick brown fox jumps over the lazy dog", "\\w+", "g", {{"The"}, {"quick"}, {"brown"}, {"fox"}, {"jumps"}, {"over"}, {"the"}, {"lazy"}, {"dog"}})
 test("The quick brown fox jumps over the lazy dog", "[aeiou]{2,}", "g", {{"ui"}})
+
+test("The quick brown fox jumps over the lazy dog", "(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)", "n",
+	{{"The quick brown", groups={"The", "quick", "brown"}, named_groups={first_word="The", third_word="brown"}}}
+)
 
 local bold_green = "\27[1;32m"
 local bold_red = "\27[1;31m"

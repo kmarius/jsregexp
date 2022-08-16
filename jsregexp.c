@@ -32,6 +32,7 @@ static int regex_closure(lua_State *lstate)
 
   struct regex *r = lua_touserdata(lstate, lua_upvalueindex(1));
   const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
+  const int named_groups = lre_get_flags(r->bc) & LRE_FLAG_NAMED_GROUPS;
   const int capture_count = lre_get_capture_count(r->bc);
 
   const uint8_t *input = (uint8_t *) luaL_checkstring(lstate, 1);
@@ -64,11 +65,32 @@ static int regex_closure(lua_State *lstate)
     lua_setfield(lstate, -2, "end_ind");
 
     lua_newtable(lstate);
+
+    const char* group_names = NULL;
+    if (named_groups) {
+      lua_newtable(lstate);
+      group_names = lre_get_groupnames(r->bc);
+    }
     for (int i = 1; i < capture_count; i++) {
       lua_pushlstring(lstate, (char *) capture[2 * i], capture[2 * i + 1] - capture[2 * i]);
       lua_rawseti(lstate, -2, i);
+      if (named_groups && group_names != NULL) {
+        if (*group_names != '\0') { // check if current group is named
+          lua_pushlstring(lstate, (char *) capture[2 * i], capture[2 * i + 1] - capture[2 * i]);
+          lua_setfield(lstate, -3, group_names);
+          group_names += strlen(group_names) + 1;  // move to the next group name
+        } else {
+          group_names += 1; // move to the next group name
+        }
+      } 
     }
-    lua_setfield(lstate, -2, "groups");
+
+    if (named_groups) {
+      lua_setfield(lstate, -3, "groups");
+      lua_setfield(lstate, -2, "named_groups");
+    } else {
+      lua_setfield(lstate, -2, "groups");
+    }
 
     lua_rawseti(lstate, -2, ++nmatch);
 
@@ -116,6 +138,7 @@ static int jsregexp_compile(lua_State *lstate)
       switch (*(flags++)) {
         case 'i': re_flags |= LRE_FLAG_IGNORECASE; break;
         case 'g': re_flags |= LRE_FLAG_GLOBAL; break;
+        case 'n': re_flags |= LRE_FLAG_NAMED_GROUPS; break;
         default: /* unknown flag */;
       }
     }
