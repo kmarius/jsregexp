@@ -92,16 +92,16 @@ static inline uint16_t *utf8_to_utf16(
 }
 
 
-static int regexp_closure(lua_State *lstate)
+static int regexp_call(lua_State *lstate)
 {
   uint8_t *capture[CAPTURE_COUNT_MAX * 2];
 
-  struct regexp *r = lua_touserdata(lstate, lua_upvalueindex(1));
+  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
   const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
   const int named_groups = lre_get_flags(r->bc) & LRE_FLAG_NAMED_GROUPS;
   const int capture_count = lre_get_capture_count(r->bc);
 
-  const uint8_t *input = (uint8_t *) luaL_checkstring(lstate, 1);
+  const uint8_t *input = (uint8_t *) luaL_checkstring(lstate, 2);
   const int input_len = strlen((char *) input);
 
   int nmatch = 0;
@@ -254,6 +254,7 @@ static int regexp_gc(lua_State *lstate)
 
 static struct luaL_Reg jsregexp_meta[] = {
   {"__gc", regexp_gc},
+  {"__call", regexp_call},
   /* {"__tostring", regexp_tostring}, */
   {NULL, NULL}
 };
@@ -306,7 +307,6 @@ static int jsregexp_compile(lua_State *lstate)
   luaL_getmetatable(lstate, "jsregexp_meta");
   lua_setmetatable(lstate, -2);
 
-  lua_pushcclosure(lstate, regexp_closure, 1);
   return 1;
 }
 
