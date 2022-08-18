@@ -242,6 +242,7 @@ static int regexp_gc(lua_State *lstate)
 {
   struct regexp *r = lua_touserdata(lstate, 1);
   free(r->bc);
+  free(r->expr);
   return 0;
 }
 
