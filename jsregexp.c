@@ -313,7 +313,7 @@ static int jsregexp_compile_safe(lua_State *lstate) {
   lua_pushvalue(lstate, 1);
   lua_pushvalue(lstate, 2);
   int err = lua_pcall(lstate, 2, 1, 0);
-  if (err == LUA_OK) {
+  if (err == 0) {
     return 1;
   } else {
     lua_pushnil(lstate); // add nil
