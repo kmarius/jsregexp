@@ -13,7 +13,7 @@ local function test(str, regex, flags, want)
 	end
 
 	tests = tests + 1
-	local r = jsregexp.compile(regex, flags)
+	local r = jsregexp.compile_safe(regex, flags)
 	if want and r then
 		local res = r(str)
 		if #res ~= #want then

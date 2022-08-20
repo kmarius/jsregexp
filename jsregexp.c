@@ -306,9 +306,28 @@ static int jsregexp_compile(lua_State *lstate)
   return 1;
 }
 
+static int jsregexp_compile_safe(lua_State *lstate) {
+  luaL_checkstring(lstate, 1);
+  luaL_optstring(lstate, 2, NULL);
+  lua_pushcfunction(lstate, jsregexp_compile);
+  lua_pushvalue(lstate, 1);
+  lua_pushvalue(lstate, 2);
+  int err = lua_pcall(lstate, 2, 1, 0);
+  if (err == LUA_OK) {
+    return 1;
+  } else {
+    lua_pushnil(lstate); // add nil
+    lua_pushvalue(lstate, -2); // error message after
+    lua_remove(lstate, -3); // remove error message
+    return 2;
+  }
+}
+
+
 
 static const struct luaL_Reg jsregexp_lib[] = {
   {"compile", jsregexp_compile},
+  {"compile_safe", jsregexp_compile_safe},
   {NULL, NULL}
 };
 
