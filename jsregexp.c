@@ -25,6 +25,7 @@
 #endif
 
 struct regexp {
+  char* expr;
   uint8_t *bc;
 };
 
@@ -92,16 +93,16 @@ static inline uint16_t *utf8_to_utf16(
 }
 
 
-static int regexp_closure(lua_State *lstate)
+static int regexp_call(lua_State *lstate)
 {
   uint8_t *capture[CAPTURE_COUNT_MAX * 2];
 
-  struct regexp *r = lua_touserdata(lstate, lua_upvalueindex(1));
+  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
   const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
   const int named_groups = lre_get_flags(r->bc) & LRE_FLAG_NAMED_GROUPS;
   const int capture_count = lre_get_capture_count(r->bc);
 
-  const uint8_t *input = (uint8_t *) luaL_checkstring(lstate, 1);
+  const uint8_t *input = (uint8_t *) luaL_checkstring(lstate, 2);
   const int input_len = strlen((char *) input);
 
   int nmatch = 0;
@@ -241,20 +242,30 @@ static int regexp_gc(lua_State *lstate)
 {
   struct regexp *r = lua_touserdata(lstate, 1);
   free(r->bc);
+  free(r->expr);
   return 0;
 }
 
 
-/* static int regexp_tostring(lua_State *lstate) */
-/* { */
-/*  lua_pushfstring(lstate, "jsregexp: %p", lua_touserdata(lstate, 1)); */
-/*  return 1; */
-/* } */
+static int regexp_tostring(lua_State *lstate)
+{
+  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
+  const int flags = lre_get_flags(r->bc);
+
+  const char* ignorecase = (flags & LRE_FLAG_IGNORECASE) ? "i" : "";
+  const char* global = (flags & LRE_FLAG_GLOBAL) ? "g" : "";
+  const char* named_groups = (flags & LRE_FLAG_NAMED_GROUPS) ? "n" : "";
+  const char* utf16 = (flags & LRE_FLAG_UTF16) ? "u" : "";
+
+  lua_pushfstring(lstate, "jsregexp: /%s/%s%s%s%s", r->expr, ignorecase, global, named_groups, utf16);
+  return 1;
+}
 
 
 static struct luaL_Reg jsregexp_meta[] = {
   {"__gc", regexp_gc},
-  /* {"__tostring", regexp_tostring}, */
+  {"__call", regexp_call},
+  {"__tostring", regexp_tostring},
   {NULL, NULL}
 };
 
@@ -302,11 +313,11 @@ static int jsregexp_compile(lua_State *lstate)
 
   struct regexp *ud = lua_newuserdata(lstate, sizeof *ud);
   ud->bc = bc;
+  ud->expr = strdup(regexp);
 
   luaL_getmetatable(lstate, "jsregexp_meta");
   lua_setmetatable(lstate, -2);
 
-  lua_pushcclosure(lstate, regexp_closure, 1);
   return 1;
 }
 
