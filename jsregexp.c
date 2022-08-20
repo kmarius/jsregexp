@@ -269,9 +269,7 @@ static int jsregexp_compile(lua_State *lstate)
   // lre_compile can segfault if the input contains 0x8f, which
   // indicated the beginning of a six byte sequence, but is now illegal.
   if (strchr(regexp, 0xfd)) {
-    lua_pushnil(lstate);
-    lua_pushstring(lstate, "malformed unicode");
-    return 2;
+    luaL_argerror(lstate, 1, "malformed unicode");
   }
 
   if (!lua_isnoneornil(lstate, 2)) {
@@ -295,9 +293,7 @@ static int jsregexp_compile(lua_State *lstate)
       strlen(regexp), re_flags, NULL);
 
   if (!bc) {
-    lua_pushnil(lstate);
-    lua_pushstring(lstate, error_msg);
-    return 2;
+    luaL_argerror(lstate, 1, error_msg);
   }
 
   struct regexp *ud = lua_newuserdata(lstate, sizeof *ud);
