@@ -316,9 +316,8 @@ static int jsregexp_compile_safe(lua_State *lstate) {
   if (err == 0) {
     return 1;
   } else {
-    lua_pushnil(lstate); // add nil
-    lua_pushvalue(lstate, -2); // error message after
-    lua_remove(lstate, -3); // remove error message
+    lua_pushnil(lstate);
+    lua_insert(lstate, -2); // add nil before error message
     return 2;
   }
 }
