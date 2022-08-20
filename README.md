@@ -33,7 +33,12 @@ This module provides a single function
 ```lua
 jsregexp.compile(regex, flags?)
 ```
-that takes an ECMAScript regular expression as a string and an optional string of flags. Currently only the options `"g"` (match globally) and `"i"` (case insensitive) are recognized.
+that takes an ECMAScript regular expression as a string and an optional string of flags:
+
+- `"i"`: case insensitive search
+- `"g"`: match globally
+- `"n"`: named groups
+- `"u"`: **implicitly set** utf-16 support if detected in the pattern string
 
 On success, returns a function that takes a string as its single argument and returns a table containing all matches. On failure, returns `nil` and an error message.
 
