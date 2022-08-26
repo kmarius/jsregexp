@@ -307,13 +307,13 @@ static int jsregexp_compile(lua_State *lstate)
 }
 
 static int jsregexp_compile_safe(lua_State *lstate) {
+  // invalid arg types should still error
   luaL_checkstring(lstate, 1);
   luaL_optstring(lstate, 2, NULL);
+
   lua_pushcfunction(lstate, jsregexp_compile);
-  lua_pushvalue(lstate, 1);
-  lua_pushvalue(lstate, 2);
-  int err = lua_pcall(lstate, 2, 1, 0);
-  if (err == 0) {
+  lua_insert(lstate, 1); // insert func before args
+  if (lua_pcall(lstate, lua_gettop(lstate) - 1, 1, 0) == 0) {
     return 1;
   } else {
     lua_pushnil(lstate);
