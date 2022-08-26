@@ -29,18 +29,19 @@ This will place the compiled module in `$HOME/.luarocks/lib/lua/5.1` so `$HOME/.
 Running `make` in this project's root will compile the module `jsregexp.so` and place it in the same directory.
 
 ## Usage
-This module provides a single function
+This module provides two functions
 ```lua
 jsregexp.compile(regex, flags?)
+jsregexp.compile_safe(regex, flags?)
 ```
-that takes an ECMAScript regular expression as a string and an optional string of flags:
+that take an ECMAScript regular expression as a string and an optional string of flags:
 
 - `"i"`: case insensitive search
 - `"g"`: match globally
 - `"n"`: named groups
 - `"u"`: **implicitly set** utf-16 support if detected in the pattern string
 
-On success, returns a function that takes a string as its single argument and returns a table containing all matches. On failure, returns `nil` and an error message.
+On success, `compile` returns a function that takes a string as its single argument and returns a table containing all matches. On failure, `compile` throws an error while `compile_save` returns `nil` and an error message.
 
 The function returns an empty table if the regular expression does not match. It will always return a table of matches even if the global flag `"g"` is not set and only a single match (at most) is possible.
 
@@ -56,7 +57,7 @@ match.groups     -- a table containing the strings of the match group correspond
 ```lua
 local jsregexp = require("jsregexp")
 
-local regex, err = jsregexp.compile("(\\w)\\w*", "g")
+local regex, err = jsregexp.compile_safe("(\\w)\\w*", "g")
 if not regex then
 	print(err)
 	return
