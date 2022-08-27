@@ -15,14 +15,18 @@
 #if LUA_VERSION_NUM >= 502
 #define new_lib(L, l) (luaL_newlib(L, l))
 #define lua_tbl_len(L, arg) (lua_rawlen(L, arg))
+#define lua_set_functions(L, fs) luaL_setfuncs(L, fs, 0)
 #else
 #define new_lib(L, l) (lua_newtable(L), luaL_register(L, NULL, l))
 #define lua_tbl_len(L, arg) (lua_objlen(L, arg))
+#define lua_set_functions(L, fs) luaL_register(L, NULL, fs);
 #endif
 
 #if LUA_VERSION_NUM < 503
 #define lua_pushinteger(L, n) lua_pushinteger(L, n)
 #endif
+
+#define streq(X, Y) ((*(X) == *(Y)) && strcmp(X, Y) == 0)
 
 struct regexp {
   char* expr;
@@ -286,6 +290,11 @@ static int regexp_exec(lua_State *lstate)
   struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
   const char *input = luaL_checklstring(lstate, 2, &input_len);
 
+  // check what happens in JS
+  if (r->last_index >= input_len) {
+    r->last_index = input_len;
+  }
+
   const int capture_count = lre_get_capture_count(r->bc);
   const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
   const char* group_names = lre_get_groupnames(r->bc);
@@ -375,12 +384,55 @@ static int regexp_test(lua_State *lstate)
 }
 
 
+// more gettable fields to be added here
+static int regexp_index(lua_State *lstate)
+{
+  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
+
+  luaL_getmetatable(lstate, "jsregexp_meta");
+  lua_pushvalue(lstate, 2);
+  lua_rawget(lstate, -2);
+
+  if (lua_isnil(lstate, -1)) {
+    const char *key = lua_tostring(lstate, 2);
+    if (streq(key, "last_index")) {
+      lua_pushnumber(lstate, r->last_index);
+    } else if (streq(key, "global")) {
+      lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_GLOBAL);
+    } else {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+
+// only last_index should be settable
+static int regexp_newindex(lua_State *lstate)
+{
+  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
+
+  const char *key = lua_tostring(lstate, 2);
+  if (streq(key, "last_index")) {
+    const int ind = luaL_checknumber(lstate, 3);
+    luaL_argcheck(lstate, ind >= 0, 3, "last_index must be non-negative");
+    r->last_index = ind;
+  } else {
+      luaL_argerror(lstate, 2, "unrecognized key");
+  }
+
+  return 0;
+}
+
+
 static struct luaL_Reg jsregexp_meta[] = {
   {"exec", regexp_exec},
   {"test", regexp_test},
   {"__gc", regexp_gc},
   {"__call", regexp_call},
   {"__tostring", regexp_tostring},
+  {"__index", regexp_index},
+  {"__newindex", regexp_newindex},
   {NULL, NULL}
 };
 
@@ -457,7 +509,6 @@ static const struct luaL_Reg jsregexp_lib[] = {
   {NULL, NULL}
 };
 
-
 int luaopen_jsregexp(lua_State *lstate)
 {
   luaL_newmetatable(lstate, "jsregexp_match_meta");
@@ -465,15 +516,9 @@ int luaopen_jsregexp(lua_State *lstate)
   lua_setfield(lstate, -2, "__tostring");
 
   luaL_newmetatable(lstate, "jsregexp_meta");
-  lua_pushstring(lstate, "__index");
-  lua_pushvalue(lstate, -2);
-  lua_settable(lstate, -3);  // meta.__index = meta
-
-#if LUA_VERSION_NUM >= 502
-  luaL_setfuncs(lstate, jsregexp_meta, 0);
-#else
-  luaL_register(lstate, NULL, jsregexp_meta);
-#endif
+  lua_pushvalue(lstate, -1);
+  lua_setfield(lstate, -2, "__index"); // meta.__index = meta
+  lua_set_functions(lstate, jsregexp_meta);
 
   new_lib(lstate, jsregexp_lib);
 
