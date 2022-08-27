@@ -17,7 +17,6 @@ local function test(str, regex, flags, want)
 	if want and r then
 		local res = r(str)
 		if #res ~= #want then
-			fails = fails + 1
 			return fail("match count mismatch: wanted", #want, "got ", #res)
 		end
 		for i, val in pairs(res) do
@@ -56,6 +55,63 @@ local function test(str, regex, flags, want)
 					end
 				end
 			end
+		end
+		successes = successes + 1
+	elseif not want and not r then
+		successes = successes + 1
+	elseif not r and want then
+		return fail("compilation error")
+	else
+		return fail("should not compile")
+	end
+end
+
+local function test_exec(str, regex, flags, want)
+	local function fail(...)
+		print(str, regex, flags, want)
+		print(...)
+		fails = fails + 1
+	end
+
+	tests = tests + 1
+	local r = jsregexp.compile(regex, flags)
+	if want and r then
+		for _, match_wanted in ipairs(want) do
+			local match = r:exec(str)
+			if match and not match_wanted then
+				return fail(string.format("no match expected, got %s", match))
+			end
+			if not match and match_wanted then
+				return fail(string.format("match expected, wanted %s", match_wanted))
+			end
+			if #match_wanted ~= #match then
+				return fail(string.format("match group count mismatch, wanted: %d, got: %d", #match_wanted, #match))
+			end
+			if match_wanted[0] ~= match[0] then
+				return fail(string.format("global mismatch, wanted: %s, got: ", match_wanted[0], match[0]))
+			end
+			for i, val in ipairs(match_wanted) do
+				if val ~= match[i] then
+					return fail(string.format("group %d mismatch, wanted: %s, got: %s", i, match_wanted[i], match[i]))
+				end
+			end
+			if match_wanted.groups and not match.groups then
+				return fail("expected named groups")
+			end
+			if not match_wanted.groups and match.groups then
+				return fail("expected no named groups")
+			end
+			if match_wanted.groups then
+				for key, val in pairs(match_wanted.groups) do
+					if val ~= match.groups[key] then
+						return fail(string.format("named group %s mismatch, wanted %s, got %s", key, val, match.groups[key]))
+					end
+				end
+			end
+		end
+		local res = r:exec(str)
+		if res then
+			return fail(string.format("surplus match: %s", res))
 		end
 		successes = successes + 1
 	elseif not want and not r then
@@ -138,6 +194,11 @@ test("The quick bröwn föx", "(?<first_wörd>[^ ]+) ([^ ]+) (?<third_wörd>[^ ]
 	{{"The quick bröwn", groups={"The", "quick", "bröwn"}, named_groups={["first_wörd"]="The", ["third_wörd"]="bröwn"}}}
 )
 test("𝄞𝄞 𐐷", "(?<word>[^ ]+)", "ng", {{"𝄞𝄞", groups={"𝄞𝄞"}, named_groups={word="𝄞𝄞"}}, {"𐐷", groups={"𐐷"}, named_groups={word="𐐷"}}})
+
+test_exec("The quick brown", "\\w+", "g", {{[0]="The"}, {[0]="quick"}, {[0]="brown"}})
+test_exec("The quick brown fox", "(\\w+) (\\w+)", "g", {{[0]="The quick", "The", "quick"}, {[0]="brown fox", "brown", "fox"}})
+test_exec("The quick brown fox", "(?<word1>\\w+) (\\w+)", "g",
+{{[0]="The quick", "The", "quick", groups={word1="The"}}, {[0]="brown fox", "brown", "fox", groups={word1="brown"}}})
 
 local bold_green = "\27[1;32m"
 local bold_red = "\27[1;31m"
