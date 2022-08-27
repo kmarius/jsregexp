@@ -11,6 +11,8 @@
 #include "libregexp.h"
 
 #define CAPTURE_COUNT_MAX 255  /* from libregexp.c */
+#define JSREGEXP_MT "jsregexp_meta"
+#define JSREGEXP_MATCH_MT "jsregexp_match_meta"
 
 #if LUA_VERSION_NUM >= 502
 #define new_lib(L, l) (luaL_newlib(L, l))
@@ -102,7 +104,7 @@ static int regexp_call(lua_State *lstate)
 {
   uint8_t *capture[CAPTURE_COUNT_MAX * 2];
 
-  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
   const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
   const int named_groups = lre_get_flags(r->bc) & LRE_FLAG_NAMED_GROUPS;
   const int capture_count = lre_get_capture_count(r->bc);
@@ -254,7 +256,7 @@ static int regexp_gc(lua_State *lstate)
 
 static int regexp_tostring(lua_State *lstate)
 {
-  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
   const int flags = lre_get_flags(r->bc);
 
   const char* ignorecase = (flags & LRE_FLAG_IGNORECASE) ? "i" : "";
@@ -270,7 +272,7 @@ static int regexp_tostring(lua_State *lstate)
 // automatic conversion to the global match string
 static int match_tostring(lua_State *lstate)
 {
-  //luaL_getmetatable(lstate, "jsregexp_match_meta");
+  //luaL_getmetatable(lstate, JSREGEXP_MATCH);
   //if (!lua_getmetatable(lstate, 1) || !lua_equal(lstate, -1, -2)) {
   //  luaL_argerror(lstate, 1, "match object expected");
   //}
@@ -287,7 +289,7 @@ static int regexp_exec(lua_State *lstate)
   uint8_t *capture[CAPTURE_COUNT_MAX * 2];
 
   size_t input_len;
-  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
   const char *input = luaL_checklstring(lstate, 2, &input_len);
 
   // check what happens in JS
@@ -314,7 +316,7 @@ static int regexp_exec(lua_State *lstate)
   }
 
   lua_createtable(lstate, capture_count + 1, capture_count + 3);
-  luaL_getmetatable(lstate, "jsregexp_match_meta");
+  luaL_getmetatable(lstate, JSREGEXP_MATCH_MT);
   lua_setmetatable(lstate, -2);
 
   lua_pushstring(lstate, input);
@@ -359,7 +361,7 @@ static int regexp_test(lua_State *lstate)
   uint8_t *capture[CAPTURE_COUNT_MAX * 2];
 
   size_t input_len;
-  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
   const char *input = luaL_checklstring(lstate, 2, &input_len);
 
   const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
@@ -387,9 +389,9 @@ static int regexp_test(lua_State *lstate)
 // more gettable fields to be added here
 static int regexp_index(lua_State *lstate)
 {
-  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
 
-  luaL_getmetatable(lstate, "jsregexp_meta");
+  luaL_getmetatable(lstate, JSREGEXP_MT);
   lua_pushvalue(lstate, 2);
   lua_rawget(lstate, -2);
 
@@ -410,7 +412,7 @@ static int regexp_index(lua_State *lstate)
 // only last_index should be settable
 static int regexp_newindex(lua_State *lstate)
 {
-  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
 
   const char *key = lua_tostring(lstate, 2);
   if (streq(key, "last_index")) {
@@ -479,7 +481,7 @@ static int jsregexp_compile(lua_State *lstate)
   ud->expr = strdup(regexp);
   ud->last_index = 0;
 
-  luaL_getmetatable(lstate, "jsregexp_meta");
+  luaL_getmetatable(lstate, JSREGEXP_MT);
   lua_setmetatable(lstate, -2);
 
   return 1;
@@ -511,11 +513,11 @@ static const struct luaL_Reg jsregexp_lib[] = {
 
 int luaopen_jsregexp(lua_State *lstate)
 {
-  luaL_newmetatable(lstate, "jsregexp_match_meta");
+  luaL_newmetatable(lstate, JSREGEXP_MATCH_MT);
   lua_pushcfunction(lstate, match_tostring);
   lua_setfield(lstate, -2, "__tostring");
 
-  luaL_newmetatable(lstate, "jsregexp_meta");
+  luaL_newmetatable(lstate, JSREGEXP_MT);
   lua_pushvalue(lstate, -1);
   lua_setfield(lstate, -2, "__index"); // meta.__index = meta
   lua_set_functions(lstate, jsregexp_meta);
