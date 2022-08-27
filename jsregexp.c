@@ -71,7 +71,7 @@ static inline uint16_t *utf8_to_utf16(
     uint32_t *utf16_len,
     uint32_t **indices)
 {
-  *indices = calloc((n+1), sizeof *indices);
+  *indices = calloc((n+1), sizeof **indices);
   uint16_t *str = malloc((n+1) * sizeof *str);
   uint16_t *q = str;
 
