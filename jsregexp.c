@@ -27,6 +27,7 @@
 struct regexp {
   char* expr;
   uint8_t *bc;
+  uint32_t last_index;
 };
 
 
@@ -262,7 +263,121 @@ static int regexp_tostring(lua_State *lstate)
 }
 
 
+// automatic conversion to the global match string
+static int match_tostring(lua_State *lstate)
+{
+  //luaL_getmetatable(lstate, "jsregexp_match_meta");
+  //if (!lua_getmetatable(lstate, 1) || !lua_equal(lstate, -1, -2)) {
+  //  luaL_argerror(lstate, 1, "match object expected");
+  //}
+  lua_rawgeti(lstate, 1, 0);
+  return 1;
+}
+
+
+// repeatedly running regexp:match(str) is not a good idea because we would
+// convert the string (at least from last_ind) to utf16 every time (if it is
+// needed)
+static int regexp_exec(lua_State *lstate)
+{
+  uint8_t *capture[CAPTURE_COUNT_MAX * 2];
+
+  size_t input_len;
+  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
+  const char *input = luaL_checklstring(lstate, 2, &input_len);
+
+  const int capture_count = lre_get_capture_count(r->bc);
+  const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
+  const char* group_names = lre_get_groupnames(r->bc);
+
+  const bool matched = lre_exec(capture, r->bc, (uint8_t *) input,
+      global ? r->last_index : 0, input_len, 0, NULL) == 1;
+
+  if (!matched) {
+    r->last_index = 0;
+    return 0;
+  }
+
+  if (capture[0] == capture[1]) {
+    r->last_index++;
+  } else {
+    r->last_index = capture[1] - (uint8_t *) input;
+  }
+
+  lua_createtable(lstate, capture_count + 1, capture_count + 3);
+  luaL_getmetatable(lstate, "jsregexp_match_meta");
+  lua_setmetatable(lstate, -2);
+
+  lua_pushstring(lstate, input);
+  lua_setfield(lstate, -2, "input");
+
+  lua_pushnumber(lstate, 1 + capture[0] - (uint8_t *) input); // 1-based
+  lua_setfield(lstate, -2, "index");
+
+  lua_pushlstring(lstate, (char *) capture[0], capture[1] - capture[0]);
+  lua_rawseti(lstate, -2, 0);
+
+  if (group_names) {
+    lua_newtable(lstate);               // match.groups
+    lua_pushvalue(lstate, -1);
+    lua_setfield(lstate, -3, "groups"); // immediately insert into match
+    lua_insert(lstate, -2);             // leave table below the match table
+  }
+
+  for (int i = 1; i < capture_count; i++) {
+    lua_pushlstring(lstate, (char *) capture[2*i], capture[2*i+1] - capture[2*i]);
+
+    if (group_names) {
+      // if the current group is named, duplicate and insert into the correct
+      // table
+      if (*group_names) {
+        lua_pushvalue(lstate, -1);
+        lua_setfield(lstate, -4, group_names);
+        group_names += strlen(group_names);
+      }
+      group_names++;
+    }
+
+    lua_rawseti(lstate, -2, i);
+  }
+
+  return 1;
+}
+
+
+static int regexp_test(lua_State *lstate)
+{
+  uint8_t *capture[CAPTURE_COUNT_MAX * 2];
+
+  size_t input_len;
+  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
+  const char *input = luaL_checklstring(lstate, 2, &input_len);
+
+  const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
+
+  const bool matched = lre_exec(capture, r->bc, (uint8_t *) input,
+      global ? r->last_index : 0, input_len, 0, NULL) == 1;
+
+  if (global) {
+    if (!matched) {
+      r->last_index = 0;
+    }
+
+    if (capture[0] == capture[1]) {
+      r->last_index++;
+    } else {
+      r->last_index = capture[1] - (uint8_t *) input;
+    }
+  }
+
+  lua_pushboolean(lstate, matched);
+  return 1;
+}
+
+
 static struct luaL_Reg jsregexp_meta[] = {
+  {"exec", regexp_exec},
+  {"test", regexp_test},
   {"__gc", regexp_gc},
   {"__call", regexp_call},
   {"__tostring", regexp_tostring},
@@ -310,6 +425,7 @@ static int jsregexp_compile(lua_State *lstate)
   struct regexp *ud = lua_newuserdata(lstate, sizeof *ud);
   ud->bc = bc;
   ud->expr = strdup(regexp);
+  ud->last_index = 0;
 
   luaL_getmetatable(lstate, "jsregexp_meta");
   lua_setmetatable(lstate, -2);
@@ -344,13 +460,22 @@ static const struct luaL_Reg jsregexp_lib[] = {
 
 int luaopen_jsregexp(lua_State *lstate)
 {
-  new_lib(lstate, jsregexp_lib);
+  luaL_newmetatable(lstate, "jsregexp_match_meta");
+  lua_pushcfunction(lstate, match_tostring);
+  lua_setfield(lstate, -2, "__tostring");
+
   luaL_newmetatable(lstate, "jsregexp_meta");
+  lua_pushstring(lstate, "__index");
+  lua_pushvalue(lstate, -2);
+  lua_settable(lstate, -3);  // meta.__index = meta
+
 #if LUA_VERSION_NUM >= 502
   luaL_setfuncs(lstate, jsregexp_meta, 0);
 #else
   luaL_register(lstate, NULL, jsregexp_meta);
 #endif
-  lua_pop(lstate, 1);
+
+  new_lib(lstate, jsregexp_lib);
+
   return 1;
 }
