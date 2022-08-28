@@ -292,27 +292,29 @@ static int regexp_exec(lua_State *lstate)
   struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
   const char *input = luaL_checklstring(lstate, 2, &input_len);
 
-  // check what happens in JS
-  if (r->last_index >= input_len) {
-    r->last_index = input_len;
+  if (r->last_index > input_len) {
+    r->last_index = 0;
+    return 0;
   }
 
   const int capture_count = lre_get_capture_count(r->bc);
   const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
   const char* group_names = lre_get_groupnames(r->bc);
+  uint32_t last_index = global ? r->last_index : 0;
 
-  const bool matched = lre_exec(capture, r->bc, (uint8_t *) input,
-      global ? r->last_index : 0, input_len, 0, NULL) == 1;
+  const int ret = lre_exec(capture, r->bc, (uint8_t *) input, last_index,
+      input_len, 0, NULL);
 
-  if (!matched) {
-    r->last_index = 0;
-    return 0;
+  if (global) {
+    if (ret != 1) {
+      r->last_index = 0;
+    } else {
+      r->last_index = capture[1] - (uint8_t *) input;
+    }
   }
 
-  if (capture[0] == capture[1]) {
-    r->last_index++;
-  } else {
-    r->last_index = capture[1] - (uint8_t *) input;
+  if (ret != 1) {
+    return 0;
   }
 
   lua_createtable(lstate, capture_count + 1, capture_count + 3);
@@ -364,24 +366,27 @@ static int regexp_test(lua_State *lstate)
   struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
   const char *input = luaL_checklstring(lstate, 2, &input_len);
 
-  const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
+  if (r->last_index > input_len) {
+    r->last_index = 0;
+    lua_pushboolean(lstate, false);
+    return 1;
+  }
 
-  const bool matched = lre_exec(capture, r->bc, (uint8_t *) input,
-      global ? r->last_index : 0, input_len, 0, NULL) == 1;
+  const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
+  uint32_t last_index = global ? r->last_index : 0;
+
+  const bool ret = lre_exec(capture, r->bc, (uint8_t *) input, last_index,
+      input_len, 0, NULL) == 1;
 
   if (global) {
-    if (!matched) {
+    if (ret != 1) {
       r->last_index = 0;
-    }
-
-    if (capture[0] == capture[1]) {
-      r->last_index++;
     } else {
       r->last_index = capture[1] - (uint8_t *) input;
     }
   }
 
-  lua_pushboolean(lstate, matched);
+  lua_pushboolean(lstate, ret == 1);
   return 1;
 }
 
@@ -502,7 +507,6 @@ static int jsregexp_compile_safe(lua_State *lstate) {
     return 2;
   }
 }
-
 
 
 static const struct luaL_Reg jsregexp_lib[] = {
