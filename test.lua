@@ -154,6 +154,60 @@ local function test_test(str, regex, flags, want)
 	successes = successes + 1
 end
 
+local function test_match(str, regex, flags, want)
+	local function fail(...)
+		print(str, regex, flags, want)
+		print(...)
+		fails = fails + 1
+	end
+
+	tests = tests + 1
+	local r = jsregexp.compile(regex, flags)
+	if not r then
+		return fail("compilation error")
+	end
+	local matches = r:match(str)
+	if not r.global then
+		matches = {matches}
+	end
+	if #matches ~= #want then
+		return fail(string.format("match count mismatch: wanted %d, got %d", #want, #matches))
+	end
+	for i, match_wanted in ipairs(want) do
+		local match = matches[i]
+		if match and not match_wanted then
+			return fail(string.format("no match expected, got %s", match))
+		end
+		if not match and match_wanted then
+			return fail(string.format("match expected, wanted %s", match_wanted))
+		end
+		if #match_wanted ~= #match then
+			return fail(string.format("match group count mismatch, wanted: %d, got: %d", #match_wanted, #match))
+		end
+		if match_wanted[0] ~= match[0] then
+			return fail(string.format("global mismatch, wanted: %s, got: %s", match_wanted[0], match[0]))
+		end
+		for i, val in ipairs(match_wanted) do
+			if val ~= match[i] then
+				return fail(string.format("group %d mismatch, wanted: %s, got: %s", i, match_wanted[i], match[i]))
+			end
+		end
+		if match_wanted.groups and not match.groups then
+			return fail("expected named groups")
+		end
+		if not match_wanted.groups and match.groups then
+			return fail("expected no named groups")
+		end
+		if match_wanted.groups then
+			for key, val in pairs(match_wanted.groups) do
+				if val ~= match.groups[key] then
+					return fail(string.format("named group %s mismatch, wanted %s, got %s", key, val, match.groups[key]))
+				end
+			end
+		end
+	end
+	successes = successes + 1
+end
 
 test_compile("dummy", "(.*", "", nil)
 test_compile("dummy", "[", "", nil)
@@ -225,14 +279,22 @@ test_call("The quick bröwn föx", "(?<first_wörd>[^ ]+) ([^ ]+) (?<third_wörd
 )
 test_call("𝄞𝄞 𐐷", "(?<word>[^ ]+)", "ng", {{"𝄞𝄞", groups={"𝄞𝄞"}, named_groups={word="𝄞𝄞"}}, {"𐐷", groups={"𐐷"}, named_groups={word="𐐷"}}})
 
+
 test_exec("The quick brown", "\\w+", "g", {{[0]="The"}, {[0]="quick"}, {[0]="brown"}})
 test_exec("The quick brown fox", "(\\w+) (\\w+)", "g", {{[0]="The quick", "The", "quick"}, {[0]="brown fox", "brown", "fox"}})
 test_exec("The quick brown fox", "(?<word1>\\w+) (\\w+)", "g",
 {{[0]="The quick", "The", "quick", groups={word1="The"}}, {[0]="brown fox", "brown", "fox", groups={word1="brown"}}})
 
+test_exec("𝄞𝄞 𐐷", "(?<word>[^ ]+)", "ng", {{[0]="𝄞𝄞", "𝄞𝄞", groups={word="𝄞𝄞"}}, {[0]="𐐷", "𐐷", groups={word="𐐷"}}})
+
 test_test("The quick brown", "\\w+", "", {true})
 test_test("The quick brown", "\\d+", "", {false})
 test_test("The quick brown", "\\w+", "g", {true, true, true})
+
+test_match("The quick brown", "\\w+", "g", {{[0]="The"}, {[0]="quick"}, {[0]="brown"}})
+test_match("The quick brown fox", "(\\w+) (\\w+)", "g", {{[0]="The quick", "The", "quick"}, {[0]="brown fox", "brown", "fox"}})
+test_match("The quick brown fox", "(?<word1>\\w+) (\\w+)", "g",
+{{[0]="The quick", "The", "quick", groups={word1="The"}}, {[0]="brown fox", "brown", "fox", groups={word1="brown"}}})
 
 local bold_green = "\27[1;32m"
 local bold_red = "\27[1;31m"

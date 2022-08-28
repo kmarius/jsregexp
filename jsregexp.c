@@ -284,13 +284,13 @@ static int match_tostring(lua_State *lstate)
 // repeatedly running regexp:match(str) is not a good idea because we would
 // convert the string (at least from last_ind) to utf16 every time (if it is
 // needed)
-static int regexp_exec(lua_State *lstate)
+static inline int regexp_exec_impl_utf8(
+    lua_State *lstate,
+    struct regexp *r,
+    const char *input,
+    uint32_t input_len)
 {
   uint8_t *capture[CAPTURE_COUNT_MAX * 2];
-
-  size_t input_len;
-  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
-  const char *input = luaL_checklstring(lstate, 2, &input_len);
 
   if (r->last_index > input_len) {
     r->last_index = 0;
@@ -331,9 +331,6 @@ static int regexp_exec(lua_State *lstate)
   lua_pushnumber(lstate, 1 + capture[0] - (uint8_t *) input); // 1-based
   lua_setfield(lstate, -2, "index");
 
-  lua_pushlstring(lstate, (char *) capture[0], capture[1] - capture[0]);
-  lua_rawseti(lstate, -2, 0);
-
   if (group_names) {
     lua_newtable(lstate);               // match.groups
     lua_pushvalue(lstate, -1);
@@ -341,10 +338,10 @@ static int regexp_exec(lua_State *lstate)
     lua_insert(lstate, -2);             // leave table below the match table
   }
 
-  for (int i = 1; i < capture_count; i++) {
+  for (int i = 0; i < capture_count; i++) {
     lua_pushlstring(lstate, (char *) capture[2*i], capture[2*i+1] - capture[2*i]);
 
-    if (group_names) {
+    if (i > 0 && group_names) {
       // if the current group is named, duplicate and insert into the correct
       // table
       if (*group_names) {
@@ -358,7 +355,122 @@ static int regexp_exec(lua_State *lstate)
     lua_rawseti(lstate, -2, i);
   }
 
+  if (group_names) {
+    lua_remove(lstate, -2);
+  }
+
   return 1;
+}
+
+
+static inline int regexp_exec_impl_utf16(
+    lua_State *lstate,
+    struct regexp *r,
+    const char *input,
+    uint32_t input_len,
+    uint16_t *input_utf16,
+    uint32_t input_utf16_len,
+    uint32_t *indices)
+{
+  uint8_t *capture[CAPTURE_COUNT_MAX * 2];
+
+  // r->last_index should correspond to the index in the (utf8) input string,
+  // we abuse it here, that needs to be changed
+  if (r->last_index > input_utf16_len) {
+    r->last_index = 0;
+    return 0;
+  }
+
+  const int capture_count = lre_get_capture_count(r->bc);
+  const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
+  const char* group_names = lre_get_groupnames(r->bc);
+  const uint32_t last_index = global ? r->last_index : 0;
+
+  const int ret = lre_exec(capture, r->bc, (uint8_t *) input_utf16,
+      r->last_index, input_utf16_len, 1, NULL);
+
+  if (global) {
+    if (ret != 1) {
+      r->last_index = 0;
+    } else {
+      r->last_index = (capture[1] - (uint8_t *) input_utf16) / 2;
+    }
+  }
+
+  if (ret != 1) {
+    return 0;
+  }
+
+  lua_createtable(lstate, capture_count + 1, capture_count + 3);
+  luaL_getmetatable(lstate, JSREGEXP_MATCH_MT);
+  lua_setmetatable(lstate, -2);
+
+  lua_pushstring(lstate, input);
+  lua_setfield(lstate, -2, "input");
+
+  lua_pushnumber(lstate, 1 + indices[(capture[0] - (uint8_t *) input_utf16) / 2]); // 1-based
+  lua_setfield(lstate, -2, "index");
+
+  if (group_names) {
+    lua_newtable(lstate);               // match.groups
+    lua_pushvalue(lstate, -1);
+    lua_setfield(lstate, -3, "groups"); // immediately insert into match
+    lua_insert(lstate, -2);             // leave table below the match table
+  }
+
+  for (int i = 0; i < capture_count; i++) {
+    const uint32_t a = indices[(capture[2*i] - (uint8_t *) input_utf16) / 2];
+    const uint32_t b = indices[(capture[2*i+1] - (uint8_t *) input_utf16) / 2];
+    lua_pushlstring(lstate, (char *) input+a, b-a);
+
+    if (i > 0 && group_names) {
+      if (*group_names) {
+        lua_pushvalue(lstate, -1);
+        lua_setfield(lstate, -4, group_names);
+        group_names += strlen(group_names);
+      }
+      group_names++;
+    }
+
+    lua_rawseti(lstate, -2, i);
+  }
+
+  if (group_names) {
+    lua_remove(lstate, -2);
+  }
+
+  return 1;
+}
+
+
+static inline int regexp_exec_impl(lua_State *lstate, struct regexp *r, const char *input, uint32_t input_len)
+{
+  if (utf8_contains_non_ascii((char *) input)) {
+    uint32_t *indices;
+    uint32_t input_utf16_len;
+    uint16_t *input_utf16 = utf8_to_utf16((uint8_t *) input, input_len, &input_utf16_len, &indices);
+    if (!input_utf16) {
+      // maybe just error here
+      lua_pushnil(lstate);
+      lua_pushstring(lstate, "malformed unicode");
+      return 2;
+    }
+    const int ret = regexp_exec_impl_utf16(lstate, r, input, input_len, input_utf16, input_utf16_len, indices);
+    free(input_utf16);
+    free(indices);
+    return ret;
+  } else {
+    return regexp_exec_impl_utf8(lstate, r, input, input_len);
+  }
+}
+
+
+static int regexp_exec(lua_State *lstate)
+{
+  size_t input_len;
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
+  const char *input = luaL_checklstring(lstate, 2, &input_len);
+  return regexp_exec_impl(lstate, r, input, input_len);
 }
 
 
@@ -396,6 +508,52 @@ static int regexp_test(lua_State *lstate)
 
   lua_pushboolean(lstate, ret == 1);
   return 1;
+}
+
+
+static int regexp_match(lua_State *lstate)
+{
+  size_t input_len;
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
+  const char *input = luaL_checklstring(lstate, 2, &input_len);
+  if (!(lre_get_flags(r->bc) & LRE_FLAG_GLOBAL)) {
+    const int last_index = r->last_index;
+    const int ret = regexp_exec_impl(lstate, r, input, input_len);
+    r->last_index = last_index;
+    return ret;
+  } else {
+    const int last_index = r->last_index;
+    uint32_t input_utf16_len;
+    uint32_t *indices = NULL;
+    uint16_t *input_utf16 = NULL;
+    const bool is_utf16 = utf8_contains_non_ascii(input);
+    if (is_utf16) {
+      input_utf16 = utf8_to_utf16((uint8_t *) input, input_len, &input_utf16_len, &indices);
+      if (!input_utf16) {
+        // maybe just error here
+        lua_pushnil(lstate);
+        lua_pushstring(lstate, "malformed unicode");
+        return 2;
+      }
+    }
+    lua_newtable(lstate);
+    for (int i = 1;; i++) {
+      int ret;
+      if (is_utf16) {
+        ret = regexp_exec_impl_utf16(lstate, r, input, input_len, input_utf16, input_utf16_len, indices);
+      } else {
+        ret = regexp_exec_impl_utf8(lstate, r, input, input_len);
+      }
+      if (ret == 0) {
+        break;
+      }
+      lua_rawseti(lstate, -2, i);
+    }
+    free(input_utf16);
+    free(indices);
+    r->last_index = last_index;
+    return 1;
+  }
 }
 
 
@@ -443,6 +601,7 @@ static int regexp_newindex(lua_State *lstate)
 static struct luaL_Reg jsregexp_meta[] = {
   {"exec", regexp_exec},
   {"test", regexp_test},
+  {"match", regexp_match},
   {"__gc", regexp_gc},
   {"__call", regexp_call},
   {"__tostring", regexp_tostring},
