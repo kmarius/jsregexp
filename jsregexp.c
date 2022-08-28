@@ -376,7 +376,7 @@ static int regexp_test(lua_State *lstate)
   uint32_t last_index = global ? r->last_index : 0;
 
   const bool ret = lre_exec(capture, r->bc, (uint8_t *) input, last_index,
-      input_len, 0, NULL) == 1;
+      input_len, 0, NULL);
 
   if (global) {
     if (ret != 1) {
