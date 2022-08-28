@@ -4,7 +4,23 @@ local tests = 0
 local fails = 0
 local successes = 0
 
--- TODO: print more info case on fail
+-- all other tests count not-compilation as failure
+local function test_compile(str, regex, flags, want)
+	local function fail(...)
+		print(str, regex, flags, want)
+		print(...)
+		fails = fails + 1
+	end
+	tests = tests + 1
+	local r = jsregexp.compile_safe(regex, flags)
+	if not r and want then
+		return fail("compilation error")
+	elseif r and not want then
+		return fail("should not compile")
+	end
+	successes = successes + 1
+end
+
 local function test_call(str, regex, flags, want)
 	local function fail(...)
 		print(str, regex, flags, want)
@@ -14,56 +30,51 @@ local function test_call(str, regex, flags, want)
 
 	tests = tests + 1
 	local r = jsregexp.compile_safe(regex, flags)
-	if want and r then
-		local res = r(str)
-		if #res ~= #want then
-			return fail("match count mismatch: wanted", #want, "got ", #res)
+	if not r then
+		return fail("compilation error")
+	end
+	local res = r(str)
+	if #res ~= #want then
+		return fail("match count mismatch: wanted", #want, "got ", #res)
+	end
+	for i, val in pairs(res) do
+		local want = want[i]
+		if not want then
+			return fail("compilation should have failed")
 		end
-		for i, val in pairs(res) do
-			local want = want[i]
-			if not want then
-				return fail("compilation should have failed")
+		local match = string.sub(str, val.begin_ind, val.end_ind)
+		if match ~= want[1] then
+			return fail("global mismatch:", match, want[1])
+		end
+		if #val.groups > 0 then
+			if not want.groups or #want.groups ~= #val.groups then
+				return fail("number of match groups mismatch")
 			end
-			local match = string.sub(str, val.begin_ind, val.end_ind)
-			if match ~= want[1] then
-				return fail("global mismatch:", match, want[1])
-			end
-			if #val.groups > 0 then
-				if not want.groups or #want.groups ~= #val.groups then
-					return fail("number of match groups mismatch")
-				end
-				for j, v in pairs(val.groups) do
-					if v ~= want.groups[j] then
-						return fail("match group mismatch", i, v, want.groups[j])
-					end
-				end
-			else
-				if want.groups and #want.groups > 0 then
-					return fail("number of match groups mismatch")
+			for j, v in pairs(val.groups) do
+				if v ~= want.groups[j] then
+					return fail("match group mismatch", i, v, want.groups[j])
 				end
 			end
-			if want.named_groups ~= nil then
-				if val.named_groups == nil then
+		else
+			if want.groups and #want.groups > 0 then
+				return fail("number of match groups mismatch")
+			end
+		end
+		if want.named_groups ~= nil then
+			if val.named_groups == nil then
+				fails = fails + 1
+				return
+			end
+			for k,v in pairs(want.named_groups) do
+				if val.named_groups[k] ~= v then
 					fails = fails + 1
+					print(string.format("named group mismatch group '%s': expected '%s', actual '%s'", k, v, val.named_groups[k]))
 					return
 				end
-				for k,v in pairs(want.named_groups) do
-					if val.named_groups[k] ~= v then
-						fails = fails + 1
-						print(string.format("named group mismatch group '%s': expected '%s', actual '%s'", k, v, val.named_groups[k]))
-						return
-					end
-				end
 			end
 		end
-		successes = successes + 1
-	elseif not want and not r then
-		successes = successes + 1
-	elseif not r and want then
-		return fail("compilation error")
-	else
-		return fail("should not compile")
 	end
+	successes = successes + 1
 end
 
 local function test_exec(str, regex, flags, want)
@@ -75,52 +86,47 @@ local function test_exec(str, regex, flags, want)
 
 	tests = tests + 1
 	local r = jsregexp.compile(regex, flags)
-	if want and r then
-		for _, match_wanted in ipairs(want) do
-			local match = r:exec(str)
-			if match and not match_wanted then
-				return fail(string.format("no match expected, got %s", match))
-			end
-			if not match and match_wanted then
-				return fail(string.format("match expected, wanted %s", match_wanted))
-			end
-			if #match_wanted ~= #match then
-				return fail(string.format("match group count mismatch, wanted: %d, got: %d", #match_wanted, #match))
-			end
-			if match_wanted[0] ~= match[0] then
-				return fail(string.format("global mismatch, wanted: %s, got: %s", match_wanted[0], match[0]))
-			end
-			for i, val in ipairs(match_wanted) do
-				if val ~= match[i] then
-					return fail(string.format("group %d mismatch, wanted: %s, got: %s", i, match_wanted[i], match[i]))
-				end
-			end
-			if match_wanted.groups and not match.groups then
-				return fail("expected named groups")
-			end
-			if not match_wanted.groups and match.groups then
-				return fail("expected no named groups")
-			end
-			if match_wanted.groups then
-				for key, val in pairs(match_wanted.groups) do
-					if val ~= match.groups[key] then
-						return fail(string.format("named group %s mismatch, wanted %s, got %s", key, val, match.groups[key]))
-					end
-				end
-			end
-		end
-		local match = r:exec(str)
-		if r.global and match then
-			return fail(string.format("surplus match: %s", match))
-		end
-		successes = successes + 1
-	elseif not want and not r then
-		successes = successes + 1
-	elseif not r and want then
+	if not r then
 		return fail("compilation error")
-	else
-		return fail("should not compile")
 	end
+	for _, match_wanted in ipairs(want) do
+		local match = r:exec(str)
+		if match and not match_wanted then
+			return fail(string.format("no match expected, got %s", match))
+		end
+		if not match and match_wanted then
+			return fail(string.format("match expected, wanted %s", match_wanted))
+		end
+		if #match_wanted ~= #match then
+			return fail(string.format("match group count mismatch, wanted: %d, got: %d", #match_wanted, #match))
+		end
+		if match_wanted[0] ~= match[0] then
+			return fail(string.format("global mismatch, wanted: %s, got: %s", match_wanted[0], match[0]))
+		end
+		for i, val in ipairs(match_wanted) do
+			if val ~= match[i] then
+				return fail(string.format("group %d mismatch, wanted: %s, got: %s", i, match_wanted[i], match[i]))
+			end
+		end
+		if match_wanted.groups and not match.groups then
+			return fail("expected named groups")
+		end
+		if not match_wanted.groups and match.groups then
+			return fail("expected no named groups")
+		end
+		if match_wanted.groups then
+			for key, val in pairs(match_wanted.groups) do
+				if val ~= match.groups[key] then
+					return fail(string.format("named group %s mismatch, wanted %s, got %s", key, val, match.groups[key]))
+				end
+			end
+		end
+	end
+	local match = r:exec(str)
+	if r.global and match then
+		return fail(string.format("surplus match: %s", match))
+	end
+	successes = successes + 1
 end
 
 local function test_test(str, regex, flags, want)
@@ -132,30 +138,29 @@ local function test_test(str, regex, flags, want)
 
 	tests = tests + 1
 	local r = jsregexp.compile(regex, flags)
-	if want and r then
-		for _, match_wanted in ipairs(want) do
-			local match = r:test(str)
-			if match ~= match_wanted then
-				return fail(string.format("test mismatch, wanted: %s, got: %s", match_wanted, match))
-			end
-		end
-		local match = r:test(str)
-		if r.global and match then
-			return fail(string.format("surplus match: %s", tostring(match)))
-		end
-		successes = successes + 1
-	elseif not want and not r then
-		successes = successes + 1
-	elseif not r and want then
+	if not r then
 		return fail("compilation error")
-	else
-		return fail("should not compile")
 	end
+	for _, match_wanted in ipairs(want) do
+		local match = r:test(str)
+		if match ~= match_wanted then
+			return fail(string.format("test mismatch, wanted: %s, got: %s", match_wanted, match))
+		end
+	end
+	local match = r:test(str)
+	if r.global and match then
+		return fail(string.format("surplus match: %s", tostring(match)))
+	end
+	successes = successes + 1
 end
 
 
-test_call("dummy", "(.*", "", nil)
-test_call("dummy", "[", "", nil)
+test_compile("dummy", "(.*", "", nil)
+test_compile("dummy", "[", "", nil)
+
+-- 0xfd (together with other wird chars) crashes lre_compile if not caught
+-- (luajit at least..)
+test_compile("dummy", string.char(0xfd, 166, 178, 165, 138, 183), "", nil)
 
 test_call("dummy", ".", "", {{"d"}})
 test_call("du", ".", "g", {{"d"}, {"u"}})
@@ -179,7 +184,6 @@ test_call("äöü", "[äöü]*", "g", {{"äöü"}, {""}})
 test_call("äÄ", "ä", "gi", {{"ä"}, {"Ä"}})
 test_call("öäü.haha", "([^.]*)\\.(.*)", "", {{"öäü.haha", groups={"öäü", "haha"}}})
 
-test_call("𝄞", "𝄞(", "", nil)
 test_call("𝄞", "𝄞", "", {{"𝄞"}})
 -- these empty matches are expected and consistent with vscode
 test_call("öö öö", "ö*", "g", {{"öö"}, {""}, {"öö"}, {""}})
@@ -207,10 +211,6 @@ test_call("Съешь же ещё этих мягких французских �
 
 -- no idea how thai works
 -- test("จงฝ่าฟันพัฒนาวิชาการ", "(จงฝ่าฟันพัฒนาวิชาการ)", "", {{"จงฝ่าฟันพัฒนาวิชาการ", groups="จงฝ่าฟันพัฒนาวิชาการ"}})
-
--- 0xfd (together with other wird chars) crashes lre_compile if not caught
--- (luajit at least..)
-test_call("dummy", string.char(0xfd, 166, 178, 165, 138, 183), "", nil)
 
 
 -- named groups:
