@@ -305,6 +305,10 @@ static int regexp_exec(lua_State *lstate)
   const int ret = lre_exec(capture, r->bc, (uint8_t *) input, last_index,
       input_len, 0, NULL);
 
+  if (ret < 0) {
+    luaL_error(lstate, "out of memory in regexp execution");
+  }
+
   if (global) {
     if (ret != 1) {
       r->last_index = 0;
@@ -375,8 +379,12 @@ static int regexp_test(lua_State *lstate)
   const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
   uint32_t last_index = global ? r->last_index : 0;
 
-  const bool ret = lre_exec(capture, r->bc, (uint8_t *) input, last_index,
+  const int ret = lre_exec(capture, r->bc, (uint8_t *) input, last_index,
       input_len, 0, NULL);
+
+  if (ret < 0) {
+    luaL_error(lstate, "out of memory in regexp execution");
+  }
 
   if (global) {
     if (ret != 1) {
@@ -425,7 +433,7 @@ static int regexp_newindex(lua_State *lstate)
     luaL_argcheck(lstate, ind >= 1, 3, "last_index must be positive");
     r->last_index = ind - 1;
   } else {
-      luaL_argerror(lstate, 2, "unrecognized key");
+    luaL_argerror(lstate, 2, "unrecognized key");
   }
 
   return 0;
