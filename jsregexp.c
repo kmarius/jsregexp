@@ -403,7 +403,7 @@ static int regexp_index(lua_State *lstate)
   if (lua_isnil(lstate, -1)) {
     const char *key = lua_tostring(lstate, 2);
     if (streq(key, "last_index")) {
-      lua_pushnumber(lstate, r->last_index);
+      lua_pushnumber(lstate, r->last_index + 1);
     } else if (streq(key, "global")) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_GLOBAL);
     } else {
@@ -422,8 +422,8 @@ static int regexp_newindex(lua_State *lstate)
   const char *key = lua_tostring(lstate, 2);
   if (streq(key, "last_index")) {
     const int ind = luaL_checknumber(lstate, 3);
-    luaL_argcheck(lstate, ind >= 0, 3, "last_index must be non-negative");
-    r->last_index = ind;
+    luaL_argcheck(lstate, ind >= 1, 3, "last_index must be positive");
+    r->last_index = ind - 1;
   } else {
       luaL_argerror(lstate, 2, "unrecognized key");
   }
