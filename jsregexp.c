@@ -11,22 +11,29 @@
 #include "libregexp.h"
 
 #define CAPTURE_COUNT_MAX 255  /* from libregexp.c */
+#define JSREGEXP_MT "jsregexp_meta"
+#define JSREGEXP_MATCH_MT "jsregexp_match_meta"
 
 #if LUA_VERSION_NUM >= 502
 #define new_lib(L, l) (luaL_newlib(L, l))
 #define lua_tbl_len(L, arg) (lua_rawlen(L, arg))
+#define lua_set_functions(L, fs) luaL_setfuncs(L, fs, 0)
 #else
 #define new_lib(L, l) (lua_newtable(L), luaL_register(L, NULL, l))
 #define lua_tbl_len(L, arg) (lua_objlen(L, arg))
+#define lua_set_functions(L, fs) luaL_register(L, NULL, fs);
 #endif
 
 #if LUA_VERSION_NUM < 503
 #define lua_pushinteger(L, n) lua_pushinteger(L, n)
 #endif
 
+#define streq(X, Y) ((*(X) == *(Y)) && strcmp(X, Y) == 0)
+
 struct regexp {
   char* expr;
   uint8_t *bc;
+  uint32_t last_index;
 };
 
 
@@ -64,7 +71,7 @@ static inline uint16_t *utf8_to_utf16(
     uint32_t *utf16_len,
     uint32_t **indices)
 {
-  *indices = calloc((n+1), sizeof *indices);
+  *indices = calloc((n+1), sizeof **indices);
   uint16_t *str = malloc((n+1) * sizeof *str);
   uint16_t *q = str;
 
@@ -97,7 +104,7 @@ static int regexp_call(lua_State *lstate)
 {
   uint8_t *capture[CAPTURE_COUNT_MAX * 2];
 
-  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
   const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
   const int named_groups = lre_get_flags(r->bc) & LRE_FLAG_NAMED_GROUPS;
   const int capture_count = lre_get_capture_count(r->bc);
@@ -249,7 +256,7 @@ static int regexp_gc(lua_State *lstate)
 
 static int regexp_tostring(lua_State *lstate)
 {
-  struct regexp *r = luaL_checkudata(lstate, 1, "jsregexp_meta");
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
   const int flags = lre_get_flags(r->bc);
 
   const char* ignorecase = (flags & LRE_FLAG_IGNORECASE) ? "i" : "";
@@ -262,10 +269,185 @@ static int regexp_tostring(lua_State *lstate)
 }
 
 
+// automatic conversion to the global match string
+static int match_tostring(lua_State *lstate)
+{
+  //luaL_getmetatable(lstate, JSREGEXP_MATCH);
+  //if (!lua_getmetatable(lstate, 1) || !lua_equal(lstate, -1, -2)) {
+  //  luaL_argerror(lstate, 1, "match object expected");
+  //}
+  lua_rawgeti(lstate, 1, 0);
+  return 1;
+}
+
+
+// repeatedly running regexp:match(str) is not a good idea because we would
+// convert the string (at least from last_ind) to utf16 every time (if it is
+// needed)
+static int regexp_exec(lua_State *lstate)
+{
+  uint8_t *capture[CAPTURE_COUNT_MAX * 2];
+
+  size_t input_len;
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
+  const char *input = luaL_checklstring(lstate, 2, &input_len);
+
+  if (r->last_index > input_len) {
+    r->last_index = 0;
+    return 0;
+  }
+
+  const int capture_count = lre_get_capture_count(r->bc);
+  const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
+  const char* group_names = lre_get_groupnames(r->bc);
+  uint32_t last_index = global ? r->last_index : 0;
+
+  const int ret = lre_exec(capture, r->bc, (uint8_t *) input, last_index,
+      input_len, 0, NULL);
+
+  if (ret < 0) {
+    luaL_error(lstate, "out of memory in regexp execution");
+  }
+
+  if (global) {
+    if (ret != 1) {
+      r->last_index = 0;
+    } else {
+      r->last_index = capture[1] - (uint8_t *) input;
+    }
+  }
+
+  if (ret != 1) {
+    return 0;
+  }
+
+  lua_createtable(lstate, capture_count + 1, capture_count + 3);
+  luaL_getmetatable(lstate, JSREGEXP_MATCH_MT);
+  lua_setmetatable(lstate, -2);
+
+  lua_pushstring(lstate, input);
+  lua_setfield(lstate, -2, "input");
+
+  lua_pushnumber(lstate, 1 + capture[0] - (uint8_t *) input); // 1-based
+  lua_setfield(lstate, -2, "index");
+
+  lua_pushlstring(lstate, (char *) capture[0], capture[1] - capture[0]);
+  lua_rawseti(lstate, -2, 0);
+
+  if (group_names) {
+    lua_newtable(lstate);               // match.groups
+    lua_pushvalue(lstate, -1);
+    lua_setfield(lstate, -3, "groups"); // immediately insert into match
+    lua_insert(lstate, -2);             // leave table below the match table
+  }
+
+  for (int i = 1; i < capture_count; i++) {
+    lua_pushlstring(lstate, (char *) capture[2*i], capture[2*i+1] - capture[2*i]);
+
+    if (group_names) {
+      // if the current group is named, duplicate and insert into the correct
+      // table
+      if (*group_names) {
+        lua_pushvalue(lstate, -1);
+        lua_setfield(lstate, -4, group_names);
+        group_names += strlen(group_names);
+      }
+      group_names++;
+    }
+
+    lua_rawseti(lstate, -2, i);
+  }
+
+  return 1;
+}
+
+
+static int regexp_test(lua_State *lstate)
+{
+  uint8_t *capture[CAPTURE_COUNT_MAX * 2];
+
+  size_t input_len;
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
+  const char *input = luaL_checklstring(lstate, 2, &input_len);
+
+  if (r->last_index > input_len) {
+    r->last_index = 0;
+    lua_pushboolean(lstate, false);
+    return 1;
+  }
+
+  const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
+  uint32_t last_index = global ? r->last_index : 0;
+
+  const int ret = lre_exec(capture, r->bc, (uint8_t *) input, last_index,
+      input_len, 0, NULL);
+
+  if (ret < 0) {
+    luaL_error(lstate, "out of memory in regexp execution");
+  }
+
+  if (global) {
+    if (ret != 1) {
+      r->last_index = 0;
+    } else {
+      r->last_index = capture[1] - (uint8_t *) input;
+    }
+  }
+
+  lua_pushboolean(lstate, ret == 1);
+  return 1;
+}
+
+
+// more gettable fields to be added here
+static int regexp_index(lua_State *lstate)
+{
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
+
+  luaL_getmetatable(lstate, JSREGEXP_MT);
+  lua_pushvalue(lstate, 2);
+  lua_rawget(lstate, -2);
+
+  if (lua_isnil(lstate, -1)) {
+    const char *key = lua_tostring(lstate, 2);
+    if (streq(key, "last_index")) {
+      lua_pushnumber(lstate, r->last_index + 1);
+    } else if (streq(key, "global")) {
+      lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_GLOBAL);
+    } else {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+
+// only last_index should be settable
+static int regexp_newindex(lua_State *lstate)
+{
+  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
+
+  const char *key = lua_tostring(lstate, 2);
+  if (streq(key, "last_index")) {
+    const int ind = luaL_checknumber(lstate, 3);
+    luaL_argcheck(lstate, ind >= 1, 3, "last_index must be positive");
+    r->last_index = ind - 1;
+  } else {
+    luaL_argerror(lstate, 2, "unrecognized key");
+  }
+
+  return 0;
+}
+
+
 static struct luaL_Reg jsregexp_meta[] = {
+  {"exec", regexp_exec},
+  {"test", regexp_test},
   {"__gc", regexp_gc},
   {"__call", regexp_call},
   {"__tostring", regexp_tostring},
+  {"__index", regexp_index},
+  {"__newindex", regexp_newindex},
   {NULL, NULL}
 };
 
@@ -310,8 +492,9 @@ static int jsregexp_compile(lua_State *lstate)
   struct regexp *ud = lua_newuserdata(lstate, sizeof *ud);
   ud->bc = bc;
   ud->expr = strdup(regexp);
+  ud->last_index = 0;
 
-  luaL_getmetatable(lstate, "jsregexp_meta");
+  luaL_getmetatable(lstate, JSREGEXP_MT);
   lua_setmetatable(lstate, -2);
 
   return 1;
@@ -334,23 +517,24 @@ static int jsregexp_compile_safe(lua_State *lstate) {
 }
 
 
-
 static const struct luaL_Reg jsregexp_lib[] = {
   {"compile", jsregexp_compile},
   {"compile_safe", jsregexp_compile_safe},
   {NULL, NULL}
 };
 
-
 int luaopen_jsregexp(lua_State *lstate)
 {
+  luaL_newmetatable(lstate, JSREGEXP_MATCH_MT);
+  lua_pushcfunction(lstate, match_tostring);
+  lua_setfield(lstate, -2, "__tostring");
+
+  luaL_newmetatable(lstate, JSREGEXP_MT);
+  lua_pushvalue(lstate, -1);
+  lua_setfield(lstate, -2, "__index"); // meta.__index = meta
+  lua_set_functions(lstate, jsregexp_meta);
+
   new_lib(lstate, jsregexp_lib);
-  luaL_newmetatable(lstate, "jsregexp_meta");
-#if LUA_VERSION_NUM >= 502
-  luaL_setfuncs(lstate, jsregexp_meta, 0);
-#else
-  luaL_register(lstate, NULL, jsregexp_meta);
-#endif
-  lua_pop(lstate, 1);
+
   return 1;
 }
