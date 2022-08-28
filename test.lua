@@ -5,7 +5,7 @@ local fails = 0
 local successes = 0
 
 -- TODO: print more info case on fail
-local function test(str, regex, flags, want)
+local function test_call(str, regex, flags, want)
 	local function fail(...)
 		print(str, regex, flags, want)
 		print(...)
@@ -154,76 +154,76 @@ local function test_test(str, regex, flags, want)
 end
 
 
-test("dummy", "(.*", "", nil)
-test("dummy", "[", "", nil)
+test_call("dummy", "(.*", "", nil)
+test_call("dummy", "[", "", nil)
 
-test("dummy", ".", "", {{"d"}})
-test("du", ".", "g", {{"d"}, {"u"}})
+test_call("dummy", ".", "", {{"d"}})
+test_call("du", ".", "g", {{"d"}, {"u"}})
 
-test("dummy", "c", "", {})
-test("dummy", "c", "g", {})
-test("dummy", "d", "", {{"d"}})
-test("dummy", "m", "", {{"m"}})
-test("dummy", "m", "g", {{"m"}, {"m"}})
+test_call("dummy", "c", "", {})
+test_call("dummy", "c", "g", {})
+test_call("dummy", "d", "", {{"d"}})
+test_call("dummy", "m", "", {{"m"}})
+test_call("dummy", "m", "g", {{"m"}, {"m"}})
 
-test("dummy", "(dummy)", "", {{"dummy", groups = {"dummy"}}})
-test("The quick brown fox jumps over the lazy dog", "\\w+", "", {{"The"}})
-test("The quick brown fox jumps over the lazy dog", "\\w+", "g", {{"The"}, {"quick"}, {"brown"}, {"fox"}, {"jumps"}, {"over"}, {"the"}, {"lazy"}, {"dog"}})
-test("The quick brown fox jumps over the lazy dog", "[aeiou]{2,}", "g", {{"ui"}})
+test_call("dummy", "(dummy)", "", {{"dummy", groups = {"dummy"}}})
+test_call("The quick brown fox jumps over the lazy dog", "\\w+", "", {{"The"}})
+test_call("The quick brown fox jumps over the lazy dog", "\\w+", "g", {{"The"}, {"quick"}, {"brown"}, {"fox"}, {"jumps"}, {"over"}, {"the"}, {"lazy"}, {"dog"}})
+test_call("The quick brown fox jumps over the lazy dog", "[aeiou]{2,}", "g", {{"ui"}})
 
-test("äöü", ".", "g", {{"ä"}, {"ö"}, {"ü"}})
-test("äöü", ".", "", {{"ä"}})
-test("ÄÖÜ", ".", "", {{"Ä"}})
-test("äöü", "[äöü]", "g", {{"ä"}, {"ö"}, {"ü"}})
-test("äöü", "[äöü]*", "g", {{"äöü"}, {""}})
-test("äÄ", "ä", "gi", {{"ä"}, {"Ä"}})
-test("öäü.haha", "([^.]*)\\.(.*)", "", {{"öäü.haha", groups={"öäü", "haha"}}})
+test_call("äöü", ".", "g", {{"ä"}, {"ö"}, {"ü"}})
+test_call("äöü", ".", "", {{"ä"}})
+test_call("ÄÖÜ", ".", "", {{"Ä"}})
+test_call("äöü", "[äöü]", "g", {{"ä"}, {"ö"}, {"ü"}})
+test_call("äöü", "[äöü]*", "g", {{"äöü"}, {""}})
+test_call("äÄ", "ä", "gi", {{"ä"}, {"Ä"}})
+test_call("öäü.haha", "([^.]*)\\.(.*)", "", {{"öäü.haha", groups={"öäü", "haha"}}})
 
-test("𝄞", "𝄞(", "", nil)
-test("𝄞", "𝄞", "", {{"𝄞"}})
+test_call("𝄞", "𝄞(", "", nil)
+test_call("𝄞", "𝄞", "", {{"𝄞"}})
 -- these empty matches are expected and consistent with vscode
-test("öö öö", "ö*", "g", {{"öö"}, {""}, {"öö"}, {""}})
-test("𝄞𝄞 𝄞𝄞", "[^ ]*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {""}})
-test("𝄞𝄞", "𝄞*", "", {{"𝄞𝄞"}})
+test_call("öö öö", "ö*", "g", {{"öö"}, {""}, {"öö"}, {""}})
+test_call("𝄞𝄞 𝄞𝄞", "[^ ]*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {""}})
+test_call("𝄞𝄞", "𝄞*", "", {{"𝄞𝄞"}})
 -- doesn't work in vscode, matches only a single 𝄞 each time:
-test("𝄞𝄞𐐷𝄞𝄞", "𝄞*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {""}})
+test_call("𝄞𝄞𐐷𝄞𝄞", "𝄞*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {""}})
 -- vscode actually splits the center unicode character and produces an extra empty match. we don't.
-test("öö𐐷öö", "ö*", "g", {{"öö"}, {""}, {"öö"}, {""}})
-test("a", "𝄞|a", "g", {{"a"}}) -- utf16 regex, ascii input
+test_call("öö𐐷öö", "ö*", "g", {{"öö"}, {""}, {"öö"}, {""}})
+test_call("a", "𝄞|a", "g", {{"a"}}) -- utf16 regex, ascii input
 
-test("κόσμε", "(κόσμε)", "", {{"κόσμε", groups={"κόσμε"}}})
+test_call("κόσμε", "(κόσμε)", "", {{"κόσμε", groups={"κόσμε"}}})
 
-test("jordbær fløde på", "(jordbær fløde på)", "", {{"jordbær fløde på", groups={"jordbær fløde på"}}})
+test_call("jordbær fløde på", "(jordbær fløde på)", "", {{"jordbær fløde på", groups={"jordbær fløde på"}}})
 
-test("Heizölrückstoßabdämpfung", "(Heizölrückstoßabdämpfung)", "", {{"Heizölrückstoßabdämpfung", groups={"Heizölrückstoßabdämpfung"}}})
+test_call("Heizölrückstoßabdämpfung", "(Heizölrückstoßabdämpfung)", "", {{"Heizölrückstoßabdämpfung", groups={"Heizölrückstoßabdämpfung"}}})
 
-test("Fête l'haï volapük", "(Fête l'haï volapük)", "", {{"Fête l'haï volapük", groups={"Fête l'haï volapük"}}})
+test_call("Fête l'haï volapük", "(Fête l'haï volapük)", "", {{"Fête l'haï volapük", groups={"Fête l'haï volapük"}}})
 
-test("Árvíztűrő tükörfúrógép", "(Árvíztűrő tükörfúrógép)", "", {{"Árvíztűrő tükörfúrógép", groups={"Árvíztűrő tükörfúrógép"}}})
+test_call("Árvíztűrő tükörfúrógép", "(Árvíztűrő tükörfúrógép)", "", {{"Árvíztűrő tükörfúrógép", groups={"Árvíztűrő tükörfúrógép"}}})
 
-test("いろはにほへとちりぬるを", "(いろはにほへとちりぬるを)", "", {{"いろはにほへとちりぬるを", groups={"いろはにほへとちりぬるを"}}})
+test_call("いろはにほへとちりぬるを", "(いろはにほへとちりぬるを)", "", {{"いろはにほへとちりぬるを", groups={"いろはにほへとちりぬるを"}}})
 
-test("Съешь же ещё этих мягких французских булок да выпей чаю", "(Съешь же ещё этих мягких французских булок да выпей чаю)", "", {{"Съешь же ещё этих мягких французских булок да выпей чаю", groups={"Съешь же ещё этих мягких французских булок да выпей чаю"}}})
+test_call("Съешь же ещё этих мягких французских булок да выпей чаю", "(Съешь же ещё этих мягких французских булок да выпей чаю)", "", {{"Съешь же ещё этих мягких французских булок да выпей чаю", groups={"Съешь же ещё этих мягких французских булок да выпей чаю"}}})
 
 -- no idea how thai works
 -- test("จงฝ่าฟันพัฒนาวิชาการ", "(จงฝ่าฟันพัฒนาวิชาการ)", "", {{"จงฝ่าฟันพัฒนาวิชาการ", groups="จงฝ่าฟันพัฒนาวิชาการ"}})
 
 -- 0xfd (together with other wird chars) crashes lre_compile if not caught
 -- (luajit at least..)
-test("dummy", string.char(0xfd, 166, 178, 165, 138, 183), "", nil)
+test_call("dummy", string.char(0xfd, 166, 178, 165, 138, 183), "", nil)
 
 
 -- named groups:
-test("The quick brown fox jumps over the lazy dog", "(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)", "n",
+test_call("The quick brown fox jumps over the lazy dog", "(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)", "n",
 {{"The quick brown", groups={"The", "quick", "brown"}, named_groups={first_word="The", third_word="brown"}}}
 )
-test("The qüick bröwn föx jümps över the lazy dög", "(?<first_word>[^ ]+) ([^ ]+) (?<third_word>[^ ]+)", "n",
+test_call("The qüick bröwn föx jümps över the lazy dög", "(?<first_word>[^ ]+) ([^ ]+) (?<third_word>[^ ]+)", "n",
 {{"The qüick bröwn", groups={"The", "qüick", "bröwn"}, named_groups={first_word="The", third_word="bröwn"}}}
 )
-test("The quick bröwn föx", "(?<first_wörd>[^ ]+) ([^ ]+) (?<third_wörd>[^ ]+)", "n",
+test_call("The quick bröwn föx", "(?<first_wörd>[^ ]+) ([^ ]+) (?<third_wörd>[^ ]+)", "n",
 {{"The quick bröwn", groups={"The", "quick", "bröwn"}, named_groups={["first_wörd"]="The", ["third_wörd"]="bröwn"}}}
 )
-test("𝄞𝄞 𐐷", "(?<word>[^ ]+)", "ng", {{"𝄞𝄞", groups={"𝄞𝄞"}, named_groups={word="𝄞𝄞"}}, {"𐐷", groups={"𐐷"}, named_groups={word="𐐷"}}})
+test_call("𝄞𝄞 𐐷", "(?<word>[^ ]+)", "ng", {{"𝄞𝄞", groups={"𝄞𝄞"}, named_groups={word="𝄞𝄞"}}, {"𐐷", groups={"𐐷"}, named_groups={word="𐐷"}}})
 
 test_exec("The quick brown", "\\w+", "g", {{[0]="The"}, {[0]="quick"}, {[0]="brown"}})
 test_exec("The quick brown fox", "(\\w+) (\\w+)", "g", {{[0]="The quick", "The", "quick"}, {[0]="brown fox", "brown", "fox"}})
