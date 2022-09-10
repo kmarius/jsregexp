@@ -41,7 +41,7 @@ struct regexp {
 struct jsstring {
   bool is_wide_char;
   uint32_t len;
-  char* bstr;
+  char* bstr; // base string passed in
   uint32_t* indices;
   union {
       uint8_t* str8; /* 8 bit strings will get an extra null terminator */
@@ -343,7 +343,7 @@ static int match_tostring(lua_State *lstate)
 }
 
 
-// repeatedly running regexp:match(str) is not a good idea because we would
+// repeatedly running regexp:match(input) is not a good idea because we would
 // convert the string (at least from last_ind) to utf16 every time (if it is
 // needed)
 static int regexp_exec(lua_State *lstate)
@@ -351,11 +351,9 @@ static int regexp_exec(lua_State *lstate)
   uint8_t *capture[CAPTURE_COUNT_MAX * 2];
 
   struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
+  const struct jsstring* input = lua_tojsstring(lstate, 2);
 
-
-  struct jsstring* str = lua_tojsstring(lstate, 2);
-
-  if (r->last_index > str->len) {
+  if (r->last_index > (input->len >> (input->is_wide_char ? 1 : 0))) {
     r->last_index = 0;
     return 0;
   }
@@ -365,8 +363,8 @@ static int regexp_exec(lua_State *lstate)
   const char* group_names = lre_get_groupnames(r->bc);
   uint32_t last_index = global ? r->last_index : 0;
 
-  const int ret = lre_exec(capture, r->bc, (uint8_t *) str->u.str8, last_index,
-      str->len, str->is_wide_char ? 1 : 0, NULL);
+  const int ret = lre_exec(capture, r->bc, (uint8_t *) input->u.str8, last_index,
+      input->len, input->is_wide_char ? 1 : 0, NULL);
 
   if (ret < 0) {
     luaL_error(lstate, "out of memory in regexp execution");
@@ -376,10 +374,10 @@ static int regexp_exec(lua_State *lstate)
     if (ret != 1) {
       r->last_index = 0;
     } else {
-      if (str->is_wide_char) {
-        r->last_index = str->indices[(capture[1] - str->u.str8) / 2];
+      if (input->is_wide_char) {
+        r->last_index = input->indices[(capture[1] - input->u.str8) / 2];
       } else {
-        r->last_index = capture[1] - str->u.str8;
+        r->last_index = capture[1] - input->u.str8;
       }
     }
   }
@@ -392,20 +390,20 @@ static int regexp_exec(lua_State *lstate)
   luaL_getmetatable(lstate, JSREGEXP_MATCH_MT);
   lua_setmetatable(lstate, -2);
 
-  lua_pushstring(lstate, str->bstr);
+  lua_pushstring(lstate, input->bstr);
   lua_setfield(lstate, -2, "input");
 
-  if (str->is_wide_char) {
-    lua_pushnumber(lstate, 1 + str->indices[(capture[0] - str->u.str8) / 2]); // 1-based
+  if (input->is_wide_char) {
+    lua_pushnumber(lstate, 1 + input->indices[(capture[0] - input->u.str8) / 2]); // 1-based
   } else {
-    lua_pushnumber(lstate, 1 + capture[0] - str->u.str8); // 1-based
+    lua_pushnumber(lstate, 1 + capture[0] - input->u.str8); // 1-based
   }
   lua_setfield(lstate, -2, "index");
 
-  if (str->is_wide_char) {
-    const uint32_t a = str->indices[(capture[0] - str->u.str8) / 2];
-    const uint32_t b = str->indices[(capture[1] - str->u.str8) / 2];
-    lua_pushlstring(lstate, str->bstr+a, b-a);
+  if (input->is_wide_char) {
+    const uint32_t a = input->indices[(capture[0] - input->u.str8) / 2];
+    const uint32_t b = input->indices[(capture[1] - input->u.str8) / 2];
+    lua_pushlstring(lstate, input->bstr+a, b-a);
   } else {
     lua_pushlstring(lstate, (char *) capture[0], capture[1] - capture[0]);
   }
@@ -420,10 +418,10 @@ static int regexp_exec(lua_State *lstate)
   }
 
   for (int i = 1; i < capture_count; i++) {
-    if (str->is_wide_char) {
-      const uint32_t a = str->indices[(capture[2*i] - str->u.str8) / 2];
-      const uint32_t b = str->indices[(capture[2*i+1] - str->u.str8) / 2];
-      lua_pushlstring(lstate, str->bstr+a, b-a);
+    if (input->is_wide_char) {
+      const uint32_t a = input->indices[(capture[2*i] - input->u.str8) / 2];
+      const uint32_t b = input->indices[(capture[2*i+1] - input->u.str8) / 2];
+      lua_pushlstring(lstate, input->bstr+a, b-a);
     } else {
       lua_pushlstring(lstate, (char *) capture[2*i], capture[2*i+1] - capture[2*i]);
     }
@@ -449,11 +447,10 @@ static int regexp_test(lua_State *lstate)
 {
   uint8_t *capture[CAPTURE_COUNT_MAX * 2];
 
-  size_t input_len;
   struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
-  const char *input = luaL_checklstring(lstate, 2, &input_len);
+  const struct jsstring* input = lua_tojsstring(lstate, 2);
 
-  if (r->last_index > input_len) {
+  if (r->last_index > (input->len >> (input->is_wide_char ? 1 : 0))) {
     r->last_index = 0;
     lua_pushboolean(lstate, false);
     return 1;
@@ -462,8 +459,8 @@ static int regexp_test(lua_State *lstate)
   const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
   uint32_t last_index = global ? r->last_index : 0;
 
-  const int ret = lre_exec(capture, r->bc, (uint8_t *) input, last_index,
-      input_len, 0, NULL);
+  const int ret = lre_exec(capture, r->bc, input->u.str8, last_index,
+      input->len, input->is_wide_char ? 1 : 0, NULL);
 
   if (ret < 0) {
     luaL_error(lstate, "out of memory in regexp execution");
@@ -473,7 +470,11 @@ static int regexp_test(lua_State *lstate)
     if (ret != 1) {
       r->last_index = 0;
     } else {
-      r->last_index = capture[1] - (uint8_t *) input;
+      if (input->is_wide_char) {
+        r->last_index = input->indices[(capture[1] - input->u.str8) / 2];
+      } else {
+        r->last_index = capture[1] - input->u.str8;
+      }
     }
   }
 
