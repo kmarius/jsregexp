@@ -315,18 +315,21 @@ static int regexp_gc(lua_State *lstate)
   return 0;
 }
 
-
-static int regexp_tostring(lua_State *lstate)
-{
-  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
+static void regexp_pushflags(lua_State* lstate, const struct regexp *r) {
   const int flags = lre_get_flags(r->bc);
-
   const char* ignorecase = (flags & LRE_FLAG_IGNORECASE) ? "i" : "";
   const char* global = (flags & LRE_FLAG_GLOBAL) ? "g" : "";
   const char* named_groups = (flags & LRE_FLAG_NAMED_GROUPS) ? "n" : "";
   const char* utf16 = (flags & LRE_FLAG_UTF16) ? "u" : "";
+  lua_pushfstring(lstate, "%s%s%s%s", ignorecase, global, named_groups, utf16);
+}
 
-  lua_pushfstring(lstate, "jsregexp: /%s/%s%s%s%s", r->expr, ignorecase, global, named_groups, utf16);
+static int regexp_tostring(lua_State *lstate)
+{
+  const struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
+  lua_pushfstring(lstate, "jsregexp: /%s/", r->expr);
+  regexp_pushflags(lstate, r);
+  lua_concat(lstate, 2);
   return 1;
 }
 
@@ -500,6 +503,8 @@ static int regexp_index(lua_State *lstate)
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_GLOBAL);
     } else if (streq(key, "source")) {
       lua_pushstring(lstate, r->expr);
+    } else if (streq(key, "flags")) {
+      regexp_pushflags(lstate, r);
     } else {
       return 0;
     }
