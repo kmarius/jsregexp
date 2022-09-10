@@ -13,6 +13,8 @@
 #define CAPTURE_COUNT_MAX 255  /* from libregexp.c */
 #define JSREGEXP_MT "jsregexp_meta"
 #define JSREGEXP_MATCH_MT "jsregexp_match_meta"
+#define JSSTRING_MT "jsstring_meta"
+
 
 #if LUA_VERSION_NUM >= 502
 #define new_lib(L, l) (luaL_newlib(L, l))
@@ -34,6 +36,15 @@ struct regexp {
   char* expr;
   uint8_t *bc;
   uint32_t last_index;
+};
+
+struct jsstring {
+  bool is_wide_char;
+  uint32_t len;
+  union {
+      uint8_t* str8; /* 8 bit strings will get an extra null terminator */
+      uint16_t* str16;
+  } u;
 };
 
 
@@ -99,6 +110,61 @@ static inline uint16_t *utf8_to_utf16(
   return str;
 }
 
+
+
+static int jsstring_new(lua_State* lstate) {
+  size_t input_len;
+  const uint8_t* input = (uint8_t*)luaL_checklstring(lstate, 1, &input_len);
+  struct jsstring* ud;
+  if (utf8_contains_non_ascii((char *) input)) {
+    uint32_t *indices;
+    uint32_t input_utf16_len;
+    uint16_t *input_utf16 = utf8_to_utf16(input, input_len, &input_utf16_len, &indices);
+    
+    if (!input_utf16) {
+      luaL_error(lstate, "malformed unicode");
+    }
+
+    ud = lua_newuserdata(lstate, sizeof(*ud));
+    ud->is_wide_char = true;
+    ud->len = input_utf16_len;
+    ud->u.str16 = input_utf16;
+  } else {
+    ud = lua_newuserdata(lstate, sizeof(*ud));
+    ud->is_wide_char = true;
+    ud->len = input_len;
+    ud->u.str8 =(uint8_t*) strdup((char*)input);
+  }
+  luaL_getmetatable(lstate, JSSTRING_MT);
+  lua_setmetatable(lstate, -2);
+  return 1;
+}
+
+static int jsstring_gc(lua_State* lstate) {
+  struct jsstring *s = lua_touserdata(lstate, 1);
+  free(s->u.str8);
+  return 0;
+}
+
+
+
+static struct luaL_Reg jsstring_meta[] = {
+  {"__gc", jsstring_gc},
+  {NULL, NULL}
+};
+
+static inline struct jsstring* lua_tojsstring(lua_State *lstate, int arg) {
+  if (lua_isuserdata(lstate, arg)) {
+    // already jsstring
+    return (struct jsstring*) luaL_checkudata(lstate, arg, JSSTRING_MT);
+  } else {
+    // coerce to jsstring
+    lua_pushcfunction(lstate, jsstring_new);
+    lua_insert(lstate, arg);
+    lua_call(lstate, 1, 1);
+    return (struct jsstring*) luaL_checkudata(lstate, arg, JSSTRING_MT); 
+  }
+}
 
 static int regexp_call(lua_State *lstate)
 {
@@ -290,9 +356,12 @@ static int regexp_exec(lua_State *lstate)
 
   size_t input_len;
   struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
+
   const char *input = luaL_checklstring(lstate, 2, &input_len);
 
-  if (r->last_index > input_len) {
+  struct jsstring* str = lua_tojsstring(lstate, 2);
+
+  if (r->last_index > str->) {
     r->last_index = 0;
     return 0;
   }
@@ -520,6 +589,7 @@ static int jsregexp_compile_safe(lua_State *lstate) {
 static const struct luaL_Reg jsregexp_lib[] = {
   {"compile", jsregexp_compile},
   {"compile_safe", jsregexp_compile_safe},
+  {"to_jsstring", jsstring_new},
   {NULL, NULL}
 };
 
@@ -534,6 +604,9 @@ int luaopen_jsregexp(lua_State *lstate)
   lua_setfield(lstate, -2, "__index"); // meta.__index = meta
   lua_set_functions(lstate, jsregexp_meta);
 
+  luaL_newmetatable(lstate, JSSTRING_MT);
+  lua_set_functions(lstate, jsstring_meta);
+  
   new_lib(lstate, jsregexp_lib);
 
   return 1;
