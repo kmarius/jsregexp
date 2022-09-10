@@ -82,4 +82,9 @@ function lre.replace(re, str, replacement)
     return table.concat(newstr)
 end
 
+function lre.replace_all(re, str, replacement)
+    local re2 = jsregexp.compile(re.source, re.flags .. "g")
+    return lre.replace(re2, str, replacement) -- add global if user forgot
+end
+
 return lre
