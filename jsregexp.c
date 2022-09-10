@@ -498,6 +498,8 @@ static int regexp_index(lua_State *lstate)
       lua_pushnumber(lstate, r->last_index + 1);
     } else if (streq(key, "global")) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_GLOBAL);
+    } else if (streq(key, "source")) {
+      lua_pushstring(lstate, r->expr);
     } else {
       return 0;
     }
