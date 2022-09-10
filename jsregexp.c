@@ -113,7 +113,6 @@ static inline uint16_t *utf8_to_utf16(
 }
 
 
-
 static int jsstring_new(lua_State* lstate) {
   size_t input_len;
   const uint8_t* input = (uint8_t*)luaL_checklstring(lstate, 1, &input_len);
@@ -155,8 +154,6 @@ static int jsstring_gc(lua_State* lstate) {
   }
   return 0;
 }
-
-
 
 static struct luaL_Reg jsstring_meta[] = {
   {"__gc", jsstring_gc},
@@ -319,9 +316,12 @@ static void regexp_pushflags(lua_State* lstate, const struct regexp *r) {
   const int flags = lre_get_flags(r->bc);
   const char* ignorecase = (flags & LRE_FLAG_IGNORECASE) ? "i" : "";
   const char* global = (flags & LRE_FLAG_GLOBAL) ? "g" : "";
+  const char* multiline = (flags & LRE_FLAG_MULTILINE) ? "m" : "";
   const char* named_groups = (flags & LRE_FLAG_NAMED_GROUPS) ? "n" : "";
+  const char* dotall = (flags & LRE_FLAG_DOTALL) ? "s" : "";
   const char* utf16 = (flags & LRE_FLAG_UTF16) ? "u" : "";
-  lua_pushfstring(lstate, "%s%s%s%s", ignorecase, global, named_groups, utf16);
+  const char* sticky = (flags & LRE_FLAG_STICKY) ? "y" : "";
+  lua_pushfstring(lstate, "%s%s%s%s%s%s%s", ignorecase, global, multiline, named_groups, dotall, utf16, sticky);
 }
 
 static int regexp_tostring(lua_State *lstate)
@@ -562,7 +562,10 @@ static int jsregexp_compile(lua_State *lstate)
       switch (*(flags++)) {
         case 'i': re_flags |= LRE_FLAG_IGNORECASE; break;
         case 'g': re_flags |= LRE_FLAG_GLOBAL; break;
+        case 'm': re_flags |= LRE_FLAG_MULTILINE; break;
         case 'n': re_flags |= LRE_FLAG_NAMED_GROUPS; break;
+        case 's': re_flags |= LRE_FLAG_DOTALL; break;
+        case 'y': re_flags |= LRE_FLAG_STICKY; break;
         default: /* unknown flag */;
       }
     }
