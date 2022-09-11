@@ -59,32 +59,102 @@ function lre.split(re, str, limit)
     return split
 end
 
+local function is_digit(c, i)
+    local b = string.byte(c, i, i + 1)
+    return b >= string.byte('0') and b <= string.byte('9')
+end
+
+local function get_substitution(match, str, replacement)
+    local result = {}
+
+    local i = 1
+    local repl_len = #replacement
+
+    while true do
+        local j = string.find(replacement, "$", i, true)
+        if j == nil or j + 1 > repl_len then break end
+        table.insert(result, string.sub(replacement, i, j - 1))
+        local j0 = j
+        local c = string.sub(replacement, j + 1, j + 1)
+        j = j + 2
+        if c == '$' then
+            table.insert(result, "$")
+        elseif c == '&' then
+            table.insert(result, match[0])
+        elseif c == '`' then
+            table.insert(result, string.sub(str, 1, match.index))
+        elseif c == '\'' then
+            table.insert(result, string.sub(str, match.index + #match[0]))
+        elseif is_digit(c, 1) then
+            local k = c
+            local kv
+            local dig2 = false
+            if j <= repl_len and is_digit(replacement, j) then
+                k = k .. string.sub(replacement, j, j)
+                dig2 = true
+            end
+            local kv1 = tonumber(k)
+            assert(kv1 ~= nil)
+
+            -- This behavior is specified in ES6 and refined in ECMA 2019 
+            if dig2 and kv1 >= 1 and match[kv1] ~= nil then
+                kv = kv1
+                j = j + 1
+            else
+                kv = tonumber(k)
+                assert(kv ~= nil)
+            end
+            if kv >= 1 and match[kv] ~= nil then
+                table.insert(result, match[kv])
+            else
+                table.insert(result, string.sub(replacement, j0, j))
+            end
+        elseif c == '<' and match.groups ~= nil then
+            local k = string.find(replacement, ">", j, true)
+            if k == nil then
+                table.insert(result, string.sub(replacement, j0, j))
+            else
+                local name = string.sub(replacement, j, k - 1)
+                local capture = match.groups[name]
+                assert(capture ~= nil, "invalid capture name: " .. name)
+                table.insert(result, capture)
+                j = k + 1
+            end
+        else
+            table.insert(result, string.sub(replacement, j0, j))
+        end
+
+        i = j
+    end
+    table.insert(result, string.sub(replacement, i))
+    return table.concat(result)
+end
+
 function lre.replace(re, str, replacement)
 
     local jstr = jsregexp.to_jsstring(str)
 
-    local newstr = {}
+    re.last_index = 1
 
+    local output = {}
+
+    local prev_index = 1
+    local cur_index = 1
     while true do
-        local prev_index = re.last_index
+        prev_index = re.last_index
         local match = re:exec(jstr)
         if match == nil then break end
-        local repl
-        if type(replacement) == "function" then
-            repl = replacement(match)
-        else
-            -- todo
-            repl = replacement
-        end
-        table.insert(newstr, string.sub(str, prev_index + 1, match.index - 1))
-        table.insert(newstr, repl)
-    end
-    return table.concat(newstr)
-end
+        cur_index = re.last_index
 
-function lre.replace_all(re, str, replacement)
-    local re2 = jsregexp.compile(re.source, re.flags .. "g")
-    return lre.replace(re2, str, replacement) -- add global if user forgot
+        table.insert(output, string.sub(str, prev_index, match.index - 1))
+        if type(replacement) == "function" then
+            table.insert(output, replacement(match, str))
+        else
+            table.insert(output, get_substitution(match, str, replacement))
+        end
+    end
+    table.insert(output, string.sub(str, cur_index))
+    return table.concat(output)
 end
 
 return lre
