@@ -454,6 +454,9 @@ static int regexp_exec(lua_State *lstate)
 
 static int regexp_test(lua_State *lstate)
 {
+  if (lua_gettop(lstate) != 2) {
+    return luaL_error(lstate, "expecting exactly 2 arguments");
+  }
   lua_pushcfunction(lstate, regexp_exec);
   lua_insert(lstate, 1);
   lua_call(lstate, 2, 1);
