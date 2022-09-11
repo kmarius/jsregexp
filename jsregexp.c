@@ -356,37 +356,38 @@ static int regexp_exec(lua_State *lstate)
   struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
   const struct jsstring* input = lua_tojsstring(lstate, 2);
 
-  if (r->last_index > (input->len >> (input->is_wide_char ? 1 : 0))) {
+  const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
+  const int sticky = lre_get_flags(r->bc) & LRE_FLAG_STICKY;
+  if (!global && !sticky) {
+    r->last_index = 0;
+  } else if (r->last_index > (input->len >> (input->is_wide_char ? 1 : 0))) {
     r->last_index = 0;
     return 0;
   }
 
   const int capture_count = lre_get_capture_count(r->bc);
-  const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
   const char* group_names = lre_get_groupnames(r->bc);
-  uint32_t last_index = global ? r->last_index : 0;
 
-  const int ret = lre_exec(capture, r->bc, (uint8_t *) input->u.str8, last_index,
+  const int ret = lre_exec(capture, r->bc, (uint8_t *) input->u.str8, r->last_index,
       input->len, input->is_wide_char ? 1 : 0, NULL);
 
   if (ret < 0) {
     luaL_error(lstate, "out of memory in regexp execution");
   }
 
-  if (global) {
-    if (ret != 1) {
+  if (ret == 0) {
+    // no match
+    if (global || sticky) {
       r->last_index = 0;
-    } else {
-      if (input->is_wide_char) {
-        r->last_index = input->indices[(capture[1] - input->u.str8) / 2];
-      } else {
-        r->last_index = capture[1] - input->u.str8;
-      }
     }
-  }
-
-  if (ret != 1) {
     return 0;
+  } else  if (global || sticky) {
+    // match found
+    if (input->is_wide_char) {
+      r->last_index = input->indices[(capture[1] - input->u.str8) / 2];
+    } else {
+      r->last_index = capture[1] - input->u.str8;
+    }
   }
 
   lua_createtable(lstate, capture_count + 1, capture_count + 3);
@@ -501,6 +502,8 @@ static int regexp_index(lua_State *lstate)
       lua_pushnumber(lstate, r->last_index + 1);
     } else if (streq(key, "global")) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_GLOBAL);
+    } else if (streq(key, "sticky")) {
+      lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_STICKY);
     } else if (streq(key, "source")) {
       lua_pushstring(lstate, r->expr);
     } else if (streq(key, "flags")) {
