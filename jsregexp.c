@@ -391,11 +391,16 @@ static int regexp_exec(lua_State *lstate)
   }
 
   lua_createtable(lstate, capture_count + 1, capture_count + 3);
+
   luaL_getmetatable(lstate, JSREGEXP_MATCH_MT);
   lua_setmetatable(lstate, -2);
 
   lua_pushstring(lstate, input->bstr);
   lua_setfield(lstate, -2, "input");
+
+  lua_pushinteger(lstate, capture_count);
+  lua_setfield(lstate, -2, "capture_count");
+
 
   if (input->is_wide_char) {
     lua_pushnumber(lstate, 1 + input->indices[(capture[0] - input->u.str8) / 2]); // 1-based
