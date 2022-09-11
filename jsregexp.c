@@ -454,40 +454,10 @@ static int regexp_exec(lua_State *lstate)
 
 static int regexp_test(lua_State *lstate)
 {
-  uint8_t *capture[CAPTURE_COUNT_MAX * 2];
-
-  struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
-  const struct jsstring* input = lua_tojsstring(lstate, 2);
-
-  if (r->last_index > (input->len >> (input->is_wide_char ? 1 : 0))) {
-    r->last_index = 0;
-    lua_pushboolean(lstate, false);
-    return 1;
-  }
-
-  const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
-  uint32_t last_index = global ? r->last_index : 0;
-
-  const int ret = lre_exec(capture, r->bc, input->u.str8, last_index,
-      input->len, input->is_wide_char ? 1 : 0, NULL);
-
-  if (ret < 0) {
-    luaL_error(lstate, "out of memory in regexp execution");
-  }
-
-  if (global) {
-    if (ret != 1) {
-      r->last_index = 0;
-    } else {
-      if (input->is_wide_char) {
-        r->last_index = input->indices[(capture[1] - input->u.str8) / 2];
-      } else {
-        r->last_index = capture[1] - input->u.str8;
-      }
-    }
-  }
-
-  lua_pushboolean(lstate, ret == 1);
+  lua_pushcfunction(lstate, regexp_exec);
+  lua_insert(lstate, 1);
+  lua_call(lstate, 2, 1);
+  lua_pushboolean(lstate, !lua_isnil(lstate, -1));
   return 1;
 }
 
