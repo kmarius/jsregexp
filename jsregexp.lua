@@ -1,16 +1,10 @@
-local core = require "jsregexp.core"
-
-local jsregexp = {}
+local jsregexp = require "jsregexp.core"
 
 setmetatable(jsregexp, {
     __call = function(self, expr, flags) return jsregexp.compile(expr, flags) end
 })
 
-jsregexp.to_jsstring = core.to_jsstring
-jsregexp.compile = core.compile
-jsregexp.compile_safe = core.compile_safe
-
-function core.mt.match(re, str)
+function jsregexp.mt.match(re, str)
     local jstr = jsregexp.to_jsstring(str)
     if not re.global then return re:exec(jstr) end
     local matches = {}
@@ -26,20 +20,20 @@ function core.mt.match(re, str)
     return matches
 end
 
-function core.mt.match_all(re, str)
+function jsregexp.mt.match_all(re, str)
     -- must duplicate (according to string.proptype.matchAll spec)
     local re2 = jsregexp.compile(re.source, re.flags .. "g")
     local jstr = jsregexp.to_jsstring(str)
     return function() return re2:exec(jstr) end
 end
 
-function core.mt.match_all_list(re, str)
+function jsregexp.mt.match_all_list(re, str)
     local matches = {}
     for match in jsregexp.match_all(re, str) do table.insert(matches, match) end
     return matches
 end
 
-function core.mt.search(re, str)
+function jsregexp.mt.search(re, str)
     -- spec says to start at 1 and restore last_index
     local prev_last_index = re.last_index
     re.last_index = 1
@@ -49,7 +43,7 @@ function core.mt.search(re, str)
     return match.index
 end
 
-function core.mt.split(re, str, limit)
+function jsregexp.mt.split(re, str, limit)
     if limit == nil then limit = math.huge end
     if limit == 0 then return {} end
     assert(limit >= 0, "limit must be greater than 0")
@@ -140,7 +134,7 @@ local function get_substitution(match, str, replacement)
     return table.concat(result)
 end
 
-function core.mt.replace(re, str, replacement)
+function jsregexp.mt.replace(re, str, replacement)
 
     local jstr = jsregexp.to_jsstring(str)
 
