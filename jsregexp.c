@@ -511,7 +511,6 @@ static int regexp_newindex(lua_State *lstate)
   return 0;
 }
 
-
 static struct luaL_Reg jsregexp_meta[] = {
   {"exec", regexp_exec},
   {"test", regexp_test},
@@ -599,7 +598,7 @@ static const struct luaL_Reg jsregexp_lib[] = {
   {NULL, NULL}
 };
 
-int luaopen_jsregexp(lua_State *lstate)
+int luaopen_jsregexp_core(lua_State *lstate)
 {
   luaL_newmetatable(lstate, JSREGEXP_MATCH_MT);
   lua_pushcfunction(lstate, match_tostring);
@@ -614,6 +613,8 @@ int luaopen_jsregexp(lua_State *lstate)
   lua_set_functions(lstate, jsstring_meta);
   
   new_lib(lstate, jsregexp_lib);
+  luaL_getmetatable(lstate, JSREGEXP_MT);
+  lua_setfield(lstate, -2, "mt");
 
   return 1;
 }
