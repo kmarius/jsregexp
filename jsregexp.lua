@@ -2,6 +2,10 @@ local core = require "jsregexp.core"
 
 local jsregexp = {}
 
+setmetatable(jsregexp, {
+    __call = function(self, expr, flags) return jsregexp.compile(expr, flags) end
+})
+
 jsregexp.to_jsstring = core.to_jsstring
 jsregexp.compile = core.compile
 jsregexp.compile_safe = core.compile_safe
