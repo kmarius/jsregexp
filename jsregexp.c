@@ -478,10 +478,18 @@ static int regexp_index(lua_State *lstate)
     const char *key = lua_tostring(lstate, 2);
     if (streq(key, "last_index")) {
       lua_pushnumber(lstate, r->last_index + 1);
+    } else if (streq(key, "dot_all")) {
+      lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_DOTALL);
     } else if (streq(key, "global")) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_GLOBAL);
+    } else if (streq(key, "ignore_case")) {
+      lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_IGNORECASE);
+    } else if (streq(key, "multiline")) {
+      lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_MULTILINE);
     } else if (streq(key, "sticky")) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_STICKY);
+    } else if (streq(key, "unicode")) {
+      lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_UTF16);
     } else if (streq(key, "source")) {
       lua_pushstring(lstate, r->expr);
     } else if (streq(key, "flags")) {
