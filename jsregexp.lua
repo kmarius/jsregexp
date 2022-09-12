@@ -22,7 +22,7 @@ end
 
 function jsregexp.mt.match_all(re, str)
     -- must duplicate (according to string.proptype.matchAll spec)
-    local re2 = jsregexp.compile(re.source, re.flags .. "g")
+    local re2 = jsregexp.compile(re.source, re.flags)
     local jstr = jsregexp.to_jsstring(str)
     return function() return re2:exec(jstr) end
 end

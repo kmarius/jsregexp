@@ -327,7 +327,7 @@ static void regexp_pushflags(lua_State* lstate, const struct regexp *r) {
 static int regexp_tostring(lua_State *lstate)
 {
   const struct regexp *r = luaL_checkudata(lstate, 1, JSREGEXP_MT);
-  lua_pushfstring(lstate, "jsregexp: /%s/", r->expr);
+  lua_pushfstring(lstate, "/%s/", r->expr);
   regexp_pushflags(lstate, r);
   lua_concat(lstate, 2);
   return 1;
