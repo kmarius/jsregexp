@@ -16,7 +16,9 @@ function jsregexp.mt.match(re, str)
         val = re:exec(jstr)
         if val == nil then break end
         table.insert(matches, val[0])
+        if #val[0] == 0 then re.last_index = re.last_index + 1 end
     end
+    if #matches == 0 then return nil end
     return matches
 end
 
