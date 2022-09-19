@@ -409,16 +409,6 @@ static int regexp_exec(lua_State *lstate)
   }
   lua_setfield(lstate, -2, "index");
 
-  if (input->is_wide_char) {
-    const uint32_t a = input->indices[(capture[0] - input->u.str8) / 2];
-    const uint32_t b = input->indices[(capture[1] - input->u.str8) / 2];
-    lua_pushlstring(lstate, input->bstr+a, b-a);
-  } else {
-    lua_pushlstring(lstate, (char *) capture[0], capture[1] - capture[0]);
-  }
-  
-  lua_rawseti(lstate, -2, 0);
-
   if (group_names) {
     lua_newtable(lstate);               // match.groups
     lua_pushvalue(lstate, -1);
@@ -426,7 +416,7 @@ static int regexp_exec(lua_State *lstate)
     lua_insert(lstate, -2);             // leave table below the match table
   }
 
-  for (int i = 1; i < capture_count; i++) {
+  for (int i = 0; i < capture_count; i++) {
     if (input->is_wide_char) {
       const uint32_t a = input->indices[(capture[2*i] - input->u.str8) / 2];
       const uint32_t b = input->indices[(capture[2*i+1] - input->u.str8) / 2];
@@ -434,7 +424,7 @@ static int regexp_exec(lua_State *lstate)
     } else {
       lua_pushlstring(lstate, (char *) capture[2*i], capture[2*i+1] - capture[2*i]);
     }
-    if (group_names) {
+    if (i > 0 && group_names) {
       // if the current group is named, duplicate and insert into the correct
       // table
       if (*group_names) {
