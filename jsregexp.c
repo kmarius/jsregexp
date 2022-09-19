@@ -553,15 +553,11 @@ static int jsregexp_compile(lua_State *lstate)
         case 'm': re_flags |= LRE_FLAG_MULTILINE; break;
         case 'n': re_flags |= LRE_FLAG_NAMED_GROUPS; break;
         case 's': re_flags |= LRE_FLAG_DOTALL; break;
+        case 'u': re_flags |= LRE_FLAG_UTF16; break; 
         case 'y': re_flags |= LRE_FLAG_STICKY; break;
         default: /* unknown flag */;
       }
     }
-  }
-
-  if (utf8_contains_non_bmp(regexp)) {
-    // bmp range works fine without utf16 flag
-    re_flags |= LRE_FLAG_UTF16;
   }
 
   uint8_t *bc = lre_compile(&len, error_msg, sizeof error_msg, regexp,
