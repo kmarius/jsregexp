@@ -544,6 +544,11 @@ static int jsregexp_compile(lua_State *lstate)
     luaL_argerror(lstate, 1, "malformed unicode");
   }
 
+  if (utf8_contains_non_bmp(regexp)) {
+    // bmp range works fine without utf16 flag
+    re_flags |= LRE_FLAG_UTF16;
+  }
+
   if (!lua_isnoneornil(lstate, 2)) {
     const char *flags = luaL_checkstring(lstate, 2);
     while (*flags) {
