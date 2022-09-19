@@ -42,7 +42,9 @@ struct jsstring {
   bool is_wide_char;
   uint32_t len;
   char* bstr; // base string passed in
+  uint32_t bstr_len; // base string length
   uint32_t* indices;
+  uint32_t* rev_indices;
   union {
       uint8_t* str8; /* 8 bit strings will get an extra null terminator */
       uint16_t* str16;
@@ -82,20 +84,24 @@ static inline uint16_t *utf8_to_utf16(
     const uint8_t *input,
     uint32_t n,
     uint32_t *utf16_len,
-    uint32_t **indices)
+    uint32_t **indices,
+    uint32_t **rev_indices)
 {
   *indices = calloc((n+1), sizeof **indices);
+  // TODO: lazy way of doing it, later implement using binary search tree
+  *rev_indices = calloc((n+1), sizeof **indices); 
   uint16_t *str = malloc((n+1) * sizeof *str);
   uint16_t *q = str;
-
   const uint8_t *pos = input;
   while (*pos) {
     (*indices)[q-str] = pos - input;
+    (*rev_indices)[pos - input] = q-str;
     int c = unicode_from_utf8(pos, UTF8_CHAR_LEN_MAX, &pos);
     if (c == -1) {
       // malformed
       free(str);
       free(*indices);
+      free(*rev_indices);
       return NULL;
     }
     if ((unsigned) c > 0xffff) {
@@ -107,6 +113,7 @@ static inline uint16_t *utf8_to_utf16(
   }
   *q = 0;
   (*indices)[q - str] = n;
+  (*rev_indices)[n] = q - str;
 
   *utf16_len = q - str;
   return str;
@@ -114,13 +121,20 @@ static inline uint16_t *utf8_to_utf16(
 
 
 static int jsstring_new(lua_State* lstate) {
+  if(lua_isuserdata(lstate, 1)) {
+    luaL_checkudata(lstate, 1, JSSTRING_MT);
+    lua_pushvalue(lstate, 1);
+    return 1;
+  }
+
   size_t input_len;
   const uint8_t* input = (uint8_t*)luaL_checklstring(lstate, 1, &input_len);
   struct jsstring* ud;
   if (utf8_contains_non_ascii((char *) input)) {
     uint32_t *indices;
+    uint32_t *rev_indices;
     uint32_t input_utf16_len;
-    uint16_t *input_utf16 = utf8_to_utf16(input, input_len, &input_utf16_len, &indices);
+    uint16_t *input_utf16 = utf8_to_utf16(input, input_len, &input_utf16_len, &indices, &rev_indices);
     
     if (!input_utf16) {
       luaL_error(lstate, "malformed unicode");
@@ -131,14 +145,18 @@ static int jsstring_new(lua_State* lstate) {
     ud->len = input_utf16_len;
     ud->u.str16 = input_utf16;
     ud->bstr = strdup((char*)input);
+    ud->bstr_len = input_len;
     ud->indices = indices;
+    ud->rev_indices = rev_indices;
   } else {
     ud = lua_newuserdata(lstate, sizeof(*ud));
     ud->is_wide_char = false;
     ud->len = input_len;
+    ud->bstr_len = input_len;
     ud->u.str8 =(uint8_t*) strdup((char*)input);
     ud->bstr = (char*)ud->u.str8;
     ud->indices = NULL;
+    ud->rev_indices = NULL;
   }
   luaL_getmetatable(lstate, JSSTRING_MT);
   lua_setmetatable(lstate, -2);
@@ -149,8 +167,10 @@ static int jsstring_gc(lua_State* lstate) {
   struct jsstring *s = lua_touserdata(lstate, 1);
   free(s->u.str8);
   free(s->indices);
+  
   if (s->is_wide_char) {
     free(s->bstr);
+    free(s->rev_indices);
   }
   return 0;
 }
@@ -358,9 +378,19 @@ static int regexp_exec(lua_State *lstate)
 
   const int global = lre_get_flags(r->bc) & LRE_FLAG_GLOBAL;
   const int sticky = lre_get_flags(r->bc) & LRE_FLAG_STICKY;
+  uint32_t rlast_index = r->last_index;
+  // translate wide char to correct index
+  if (input->is_wide_char) {
+    // only translate if possible
+    if (rlast_index <= input->bstr_len) {
+      rlast_index = input->rev_indices[rlast_index];
+    }
+  }
+
   if (!global && !sticky) {
+    rlast_index = 0;
     r->last_index = 0;
-  } else if (r->last_index > (input->len >> (input->is_wide_char ? 1 : 0))) {
+  } else if (rlast_index > input->len) {
     r->last_index = 0;
     return 0;
   }
@@ -368,7 +398,7 @@ static int regexp_exec(lua_State *lstate)
   const int capture_count = lre_get_capture_count(r->bc);
   const char* group_names = lre_get_groupnames(r->bc);
 
-  const int ret = lre_exec(capture, r->bc, (uint8_t *) input->u.str8, r->last_index,
+  const int ret = lre_exec(capture, r->bc, (uint8_t *) input->u.str8, rlast_index,
       input->len, input->is_wide_char ? 1 : 0, NULL);
 
   if (ret < 0) {
