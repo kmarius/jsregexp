@@ -72,8 +72,8 @@ For the documentation of the behaviour of each of these functions, see the [Java
 **Note:** Each regexp object has a field `last_index` which denotes the position at which the next call to `exec` and `test` searches for the next match.
 Afterwards `last_index` is changed accordingly. If you need to use these methods, you should reset `last_index` to 1.
 
-**Note:** Because the regexp engine used works with UTF16 instead of UTF8, and the input string is converted to UTF16 if necessary. Calling `exec` or `test` on
-non-Ascii strings could potentially introduce a large overhead. This conversion only needs to be done once for the `match*` methods, you probably want to use them instead.
+**Note:** Because the regexp engine used works with UTF16 instead of UTF8, the input string is converted to UTF16 if necessary. Calling `exec` or `test` on
+non-Ascii strings repeatedly could potentially introduce a large overhead. This conversion only needs to be done once for the `match*` methods, you probably want to use those instead.
 
 
 ### Match object
