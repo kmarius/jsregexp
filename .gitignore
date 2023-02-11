@@ -3,6 +3,7 @@
 .ccls
 .ccls-cache
 *.lua
+!jsregexp.lua
 tags
 tags.lock
 tags.temp
