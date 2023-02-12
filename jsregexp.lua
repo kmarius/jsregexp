@@ -158,8 +158,7 @@ local function get_substitution(match, str, replacement)
     return table.concat(result)
 end
 
-function jsregexp.mt.replace(re, str, replacement)
-
+function jsregexp.mt.replace_all(re, str, replacement)
     local jstr = jsregexp.to_jsstring(str)
 
     re.last_index = 1
@@ -183,6 +182,32 @@ function jsregexp.mt.replace(re, str, replacement)
     end
     table.insert(output, string.sub(str, cur_index))
     return table.concat(output)
+end
+
+function jsregexp.mt.replace(re, str, replacement)
+	if re.global then
+		return jsregexp.mt.replace_all(re, str, replacement)
+	end
+
+    local jstr = jsregexp.to_jsstring(str)
+
+    re.last_index = 1
+
+    local output = {}
+
+	local match = re:exec(jstr)
+	if match then
+		table.insert(output, string.sub(str, 1, match.index - 1))
+		if type(replacement) == "function" then
+			table.insert(output, replacement(match, str))
+		else
+			table.insert(output, get_substitution(match, str, replacement))
+		end
+		table.insert(output, string.sub(str, re.last_index + #match[0] + 1))
+	else
+		table.insert(output, str)
+	end
+	return table.concat(output)
 end
 
 return jsregexp
