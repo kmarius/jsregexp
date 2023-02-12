@@ -58,14 +58,15 @@ re.unicode      -- is the unicode flag set?
 
 The RegExp object `re` has the following methods corresponding to JavaScript regular expressions:
 ```lua
-re:exec(str)                  -- returns the next match of re in str (see notes below)
-re:test(str)                  -- returns true if the regex matches str (see notes below)
-re:match(str)                 -- returns a list of all matches or nil if no match
-re:match_all(str)             -- returns a closure that repeatedly calls re:exec, to be used in for-loops
-re:match_all_list(str)        -- returns a list of all matches
-re:search(str)                -- returns the 1-based index of the first match of re in str, or -1 if no match
-re:split(str, limit?)         -- splits str at re, at most limit times
-re:replace(str, replacement)  -- relplace each match of re in str by replacement
+re:exec(str)                      -- returns the next match of re in str (see notes below)
+re:test(str)                      -- returns true if the regex matches str (see notes below)
+re:match(str)                     -- returns a list of all matches or nil if no match
+re:match_all(str)                 -- returns a closure that repeatedly calls re:exec, to be used in for-loops
+re:match_all_list(str)            -- returns a list of all matches
+re:search(str)                    -- returns the 1-based index of the first match of re in str, or -1 if no match
+re:split(str, limit?)             -- splits str at re, at most limit times
+re:replace(str, replacement)      -- relplace the first match of re in str by replacement (all, if global)
+re:replace_all(str, replacement)  -- relplace each match of re in str by replacement
 ```
 For the documentation of the behaviour of each of these functions, see the [JavaScript reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp).
 
