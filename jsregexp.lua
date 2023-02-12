@@ -15,7 +15,7 @@ function jsregexp.mt.match(re, str)
     while true do
         val = re:exec(jstr)
         if val == nil then break end
-        table.insert(matches, val[0])
+        table.insert(matches, val)
         if #val[0] == 0 then re.last_index = re.last_index + 1 end
     end
     if #matches == 0 then return nil end
@@ -31,7 +31,7 @@ end
 
 function jsregexp.mt.match_all_list(re, str)
     local matches = {}
-    for match in jsregexp.match_all(re, str) do table.insert(matches, match) end
+    for match in jsregexp.mt.match_all(re, str) do table.insert(matches, match) end
     return matches
 end
 
@@ -48,19 +48,41 @@ end
 function jsregexp.mt.split(re, str, limit)
     if limit == nil then limit = math.huge end
     if limit == 0 then return {} end
-    assert(limit >= 0, "limit must be greater than 0")
+    assert(limit >= 0, "limit must be non-negative")
 
-    local jstr = re.to_jsstring(str)
+    local jstr = jsregexp.to_jsstring(str)
     local re2 = jsregexp.compile(re.source, re.flags .. "y") -- add sticky
 
     local count = 0
     local split = {}
+	local prev_index = 1
     while count < limit do
-        local prev_index = re2.last_index
+		local li = re2.last_index
         local match = re2:exec(jstr)
-        if match == nil then break end
-        local element = string.sub(str, prev_index + 1, match.index - 1)
-        if #element > 0 or #match[0] then table.insert(split, element) end
+		if match then
+			if #str == 0 then
+				break
+			end
+			local sub = string.sub(str, prev_index, match.index - 1)
+			if #sub > 0 or #match[0] > 0 then table.insert(split, sub) end
+			for _, group in ipairs(match) do
+				if count < limit then
+					table.insert(split, group)
+				else
+					break
+				end
+			end
+			prev_index = re2.last_index
+		else
+			-- TODO: we should advance by one utf16 code unit, or, if the u flag is set,
+			-- by one unicode point
+			re2.last_index = li + 1
+		end
+		if re2.last_index > #str then
+			local sub = string.sub(str, prev_index, #str)
+			table.insert(split, sub)
+			break
+		end
     end
     return split
 end
@@ -102,7 +124,7 @@ local function get_substitution(match, str, replacement)
             local kv1 = tonumber(k)
             assert(kv1 ~= nil)
 
-            -- This behavior is specified in ES6 and refined in ECMA 2019 
+            -- This behavior is specified in ES6 and refined in ECMA 2019
             if dig2 and kv1 >= 1 and match[kv1] ~= nil then
                 kv = kv1
                 j = j + 1
@@ -136,8 +158,7 @@ local function get_substitution(match, str, replacement)
     return table.concat(result)
 end
 
-function jsregexp.mt.replace(re, str, replacement)
-
+function jsregexp.mt.replace_all(re, str, replacement)
     local jstr = jsregexp.to_jsstring(str)
 
     re.last_index = 1
@@ -161,6 +182,32 @@ function jsregexp.mt.replace(re, str, replacement)
     end
     table.insert(output, string.sub(str, cur_index))
     return table.concat(output)
+end
+
+function jsregexp.mt.replace(re, str, replacement)
+	if re.global then
+		return jsregexp.mt.replace_all(re, str, replacement)
+	end
+
+    local jstr = jsregexp.to_jsstring(str)
+
+    re.last_index = 1
+
+    local output = {}
+
+	local match = re:exec(jstr)
+	if match then
+		table.insert(output, string.sub(str, 1, match.index - 1))
+		if type(replacement) == "function" then
+			table.insert(output, replacement(match, str))
+		else
+			table.insert(output, get_substitution(match, str, replacement))
+		end
+		table.insert(output, string.sub(str, re.last_index + #match[0] + 1))
+	else
+		table.insert(output, str)
+	end
+	return table.concat(output)
 end
 
 return jsregexp
