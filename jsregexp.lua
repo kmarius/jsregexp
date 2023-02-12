@@ -15,7 +15,7 @@ function jsregexp.mt.match(re, str)
     while true do
         val = re:exec(jstr)
         if val == nil then break end
-        table.insert(matches, val[0])
+        table.insert(matches, val)
         if #val[0] == 0 then re.last_index = re.last_index + 1 end
     end
     if #matches == 0 then return nil end
@@ -31,7 +31,7 @@ end
 
 function jsregexp.mt.match_all_list(re, str)
     local matches = {}
-    for match in jsregexp.match_all(re, str) do table.insert(matches, match) end
+    for match in jsregexp.mt.match_all(re, str) do table.insert(matches, match) end
     return matches
 end
 
@@ -102,7 +102,7 @@ local function get_substitution(match, str, replacement)
             local kv1 = tonumber(k)
             assert(kv1 ~= nil)
 
-            -- This behavior is specified in ES6 and refined in ECMA 2019 
+            -- This behavior is specified in ES6 and refined in ECMA 2019
             if dig2 and kv1 >= 1 and match[kv1] ~= nil then
                 kv = kv1
                 j = j + 1
