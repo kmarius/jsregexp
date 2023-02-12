@@ -261,7 +261,7 @@ local function test_split(str, regex, flags, want)
 	successes = successes + 1
 end
 
-local function test_replace(str, regex, flags, want)
+local function test_replace(str, regex, flags, replacement, want)
 	local function fail(fmt, ...)
 		print(str, regex, flags, want)
 		print(string.format(fmt, ...))
@@ -271,6 +271,10 @@ local function test_replace(str, regex, flags, want)
 	local r = jsregexp.compile_safe(regex, flags)
 	if not r then
 		return fail("compilation error")
+	end
+	local res = r:replace(str, replacement)
+	if res ~= want then
+		return fail("replacement mismatch, wanted %s, got %s", want, res)
 	end
 	successes = successes + 1
 end
@@ -371,6 +375,12 @@ test_split("1-2-", "-", "g", {"1", "2", ""})
 test_split("-2-3", "-", "g", {"", "2", "3"})
 test_split("--", "-", "g", {"", "", ""})
 test_split("Hello 1 word. Sentence number 2.", "(\\d)", "g", {"Hello ", "1", " word. Sentence number ", "2", "."})
+
+test_replace("a1b2c", "X", "g", "_", "a1b2c")
+test_replace("a1b2c", "\\d", "", "_", "a_b2c")
+test_replace("a1b2c", "\\d", "g", "_", "a_b_c")
+test_replace("a1b2c", "(\\d)(.)", "g", "$1", "a12")
+test_replace("a1b2c", "(\\d)(.)", "g", "$2", "abc")
 
 local bold_green = "\27[1;32m"
 local bold_red = "\27[1;31m"
