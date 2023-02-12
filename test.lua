@@ -154,6 +154,126 @@ local function test_test(str, regex, flags, want)
 	successes = successes + 1
 end
 
+local function test_match(str, regex, flags, want)
+	local function fail(fmt, ...)
+		print(str, regex, flags, want)
+		print(string.format(fmt, ...))
+		fails = fails + 1
+	end
+	tests = tests + 1
+	local r = jsregexp.compile_safe(regex, flags)
+	if not r then
+		return fail("compilation error")
+	end
+	local matches = r:match(str)
+	if want and not matches then
+		return fail("no matches found")
+	end
+	if not want and matches then
+		return fail("matches found, none wanted")
+	end
+	if want and matches then
+		if #want ~= #matches then
+			return fail("number of matches mismatch, wanted %d, got %d", #want, #matches)
+		end
+		for i, match_want in ipairs(want) do
+			local match = matches[i][0]
+			if match ~= match_want then
+				return fail("match mismatch, wanted %s, got %s", match_want, match)
+			end
+		end
+	end
+	successes = successes + 1
+end
+
+local function test_match_all_list(str, regex, flags, want)
+	local function fail(fmt, ...)
+		print(str, regex, flags, want)
+		print(string.format(fmt, ...))
+		fails = fails + 1
+	end
+	tests = tests + 1
+	local r = jsregexp.compile_safe(regex, flags)
+	if not r then
+		return fail("compilation error")
+	end
+	local matches = r:match_all_list(str)
+	if want and not matches then
+		return fail("no matches found")
+	end
+	if not want and matches then
+		return fail("matches found, none wanted")
+	end
+	if want and matches then
+		if #want ~= #matches then
+			return fail("number of matches mismatch, wanted %d, got %d", #want, #matches)
+		end
+		for i, match_want in ipairs(want) do
+			local match = matches[i][0]
+			if match ~= match_want then
+				return fail("match mismatch, wanted %s, got %s", match_want, match)
+			end
+		end
+	end
+	successes = successes + 1
+end
+
+local function test_search(str, regex, flags, want)
+	local function fail(fmt, ...)
+		print(str, regex, flags, want)
+		print(string.format(fmt, ...))
+		fails = fails + 1
+	end
+	tests = tests + 1
+	local r = jsregexp.compile_safe(regex, flags)
+	if not r then
+		return fail("compilation error")
+	end
+	local idx = r:search(str)
+	if idx ~= want then
+		return fail("search failed: wanted %d, got %d", want, idx)
+	end
+	successes = successes + 1
+end
+
+local function test_split(str, regex, flags, want)
+	local function fail(fmt, ...)
+		print(str, regex, flags, want)
+		print(string.format(fmt, ...))
+		fails = fails + 1
+	end
+	tests = tests + 1
+	local r = jsregexp.compile_safe(regex, flags)
+	if not r then
+		return fail("compilation error")
+	end
+	local split = r:split(str)
+	local min = math.min(#split, #want)
+	for i = 1,min do
+		local w = want[i]
+		if w ~= split[i] then
+			return fail("split mismatch, wanted %s, got %s", w, split[i])
+		end
+	end
+	if #split ~= #want then
+		return fail("number of splits mismatch, wanted %d, got %d", #want, #split)
+	end
+	successes = successes + 1
+end
+
+local function test_replace(str, regex, flags, want)
+	local function fail(fmt, ...)
+		print(str, regex, flags, want)
+		print(string.format(fmt, ...))
+		fails = fails + 1
+	end
+	tests = tests + 1
+	local r = jsregexp.compile_safe(regex, flags)
+	if not r then
+		return fail("compilation error")
+	end
+	successes = successes + 1
+end
 
 test_compile("dummy", "(.*", "", nil)
 test_compile("dummy", "[", "", nil)
@@ -233,6 +353,24 @@ test_exec("The quick brown fox", "(?<word1>\\w+) (\\w+)", "g",
 test_test("The quick brown", "\\w+", "", {true})
 test_test("The quick brown", "\\d+", "", {false})
 test_test("The quick brown", "\\w+", "g", {true, true, true})
+
+test_match("The quick brown", "\\d+", "g", nil)
+test_match("The quick brown", "\\w+", "g", {"The", "quick", "brown"})
+
+test_match_all_list("The quick brown", "\\d+", "g", {})
+test_match_all_list("The quick brown", "\\w+", "g", {"The", "quick", "brown"})
+
+test_search("The quick brown", "nothing", "g", -1)
+test_search("The quick brown", "quick", "g", 5)
+
+test_split("abc", "x", "g", {"abc"})
+test_split("", "a?", "g", {})
+test_split("", "a", "g", {""})
+test_split("1-2-3", "-", "g", {"1", "2", "3"})
+test_split("1-2-", "-", "g", {"1", "2", ""})
+test_split("-2-3", "-", "g", {"", "2", "3"})
+test_split("--", "-", "g", {"", "", ""})
+test_split("Hello 1 word. Sentence number 2.", "(\\d)", "g", {"Hello ", "1", " word. Sentence number ", "2", "."})
 
 local bold_green = "\27[1;32m"
 local bold_red = "\27[1;31m"
