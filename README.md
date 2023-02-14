@@ -55,6 +55,7 @@ re.multiline    -- is the multiline flag set?
 re.sticky       -- is the sticky flag set?
 re.unicode      -- is the unicode flag set?
 ```
+Calling `tostring` on a RegExp object returns representation in the form of `"/<source>/<flags>"`.
 
 The RegExp object `re` has the following methods corresponding to JavaScript regular expressions:
 ```lua
@@ -88,6 +89,7 @@ m.capture_count  -- number of capture groups
 m.index          -- start of the capture (1-based)
 m.groups         -- table of the named groups and their content
 ```
+Calling `tostring` on a match object returns the full  match `m[0]`.
 
 ## Example
 ```lua
