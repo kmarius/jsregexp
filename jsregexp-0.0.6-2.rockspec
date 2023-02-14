@@ -1,5 +1,5 @@
 package = "jsregexp"
-version = "0.0.6-1"
+version = "0.0.6-2"
 source = {
     url = "git://github.com/kmarius/jsregexp.git",
     branch = "master",
@@ -18,7 +18,7 @@ build = {
     type = "builtin",
     modules = {
         ["jsregexp.core"] = {
-            "cutils.c", "jsregexp.c", "libregexp.c", "libunicode.c"
+            "jsregexp.c", "libregexp/cutils.c", "libregexp/libregexp.c", "libregexp/libunicode.c"
         },
         jsregexp = "jsregexp.lua"
     }

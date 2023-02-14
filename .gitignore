@@ -2,10 +2,7 @@
 *.so
 .ccls
 .ccls-cache
-*.lua
-!jsregexp.lua
 tags
 tags.lock
 tags.temp
 *.src.rock
-.yabs
