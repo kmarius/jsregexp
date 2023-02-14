@@ -7,8 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "cutils.h"
-#include "libregexp.h"
+#include "libregexp/cutils.h"
+#include "libregexp/libregexp.h"
 
 #define CAPTURE_COUNT_MAX 255  /* from libregexp.c */
 #define JSREGEXP_MT "jsregexp_meta"
@@ -89,7 +89,7 @@ static inline uint16_t *utf8_to_utf16(
 {
   *indices = calloc((n+1), sizeof **indices);
   // TODO: lazy way of doing it, later implement using binary search tree
-  *rev_indices = calloc((n+1), sizeof **indices); 
+  *rev_indices = calloc((n+1), sizeof **indices);
   uint16_t *str = malloc((n+1) * sizeof *str);
   uint16_t *q = str;
   const uint8_t *pos = input;
@@ -135,7 +135,7 @@ static int jsstring_new(lua_State* lstate) {
     uint32_t *rev_indices;
     uint32_t input_utf16_len;
     uint16_t *input_utf16 = utf8_to_utf16(input, input_len, &input_utf16_len, &indices, &rev_indices);
-    
+
     if (!input_utf16) {
       luaL_error(lstate, "malformed unicode");
     }
@@ -167,7 +167,7 @@ static int jsstring_gc(lua_State* lstate) {
   struct jsstring *s = lua_touserdata(lstate, 1);
   free(s->u.str8);
   free(s->indices);
-  
+
   if (s->is_wide_char) {
     free(s->bstr);
     free(s->rev_indices);
@@ -189,7 +189,7 @@ static inline struct jsstring* lua_tojsstring(lua_State *lstate, int arg) {
     lua_pushcfunction(lstate, jsstring_new);
     lua_insert(lstate, arg);
     lua_call(lstate, 1, 1);
-    return (struct jsstring*) luaL_checkudata(lstate, arg, JSSTRING_MT); 
+    return (struct jsstring*) luaL_checkudata(lstate, arg, JSSTRING_MT);
   }
 }
 
@@ -578,7 +578,7 @@ static int jsregexp_compile(lua_State *lstate)
         case 'm': re_flags |= LRE_FLAG_MULTILINE; break;
         case 'n': re_flags |= LRE_FLAG_NAMED_GROUPS; break;
         case 's': re_flags |= LRE_FLAG_DOTALL; break;
-        case 'u': re_flags |= LRE_FLAG_UTF16; break; 
+        case 'u': re_flags |= LRE_FLAG_UTF16; break;
         case 'y': re_flags |= LRE_FLAG_STICKY; break;
         default: /* unknown flag */;
       }
@@ -640,7 +640,7 @@ int luaopen_jsregexp_core(lua_State *lstate)
 
   luaL_newmetatable(lstate, JSSTRING_MT);
   lua_set_functions(lstate, jsstring_meta);
-  
+
   new_lib(lstate, jsregexp_lib);
   luaL_getmetatable(lstate, JSREGEXP_MT);
   lua_setfield(lstate, -2, "mt");

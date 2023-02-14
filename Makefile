@@ -1,10 +1,10 @@
 # This file is meant for testing locally, it is not used by luarocks.
 
 TARGET = jsregexp.so
-SOURCES = jsregexp.c cutils.c libregexp.c libunicode.c
+SOURCES = jsregexp.c libregexp/cutils.c libregexp/libregexp.c libregexp/libunicode.c
 OBJECTS = $(SOURCES:%.c=%.o)
 INCLUDE_DIR = -I/usr/include/lua5.1
-LDLIBS = 
+LDLIBS =
 LDFLAGS = -shared
 CFLAGS = $(INCLUDE_DIR) -O2 -fPIC
 CC = gcc
@@ -24,4 +24,5 @@ check:
 	luajit test.lua
 
 clean:
-	rm -f *.o *.so
+	rm -f *.o libregexp/*.o *.so
+	rm -rf jsregexp
