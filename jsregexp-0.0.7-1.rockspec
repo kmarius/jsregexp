@@ -8,7 +8,7 @@ source = {
 description = {
 	summary = "javascript (ECMA19) regular expressions for lua",
 	detailed = [[
-WIP: This library offers a single function to use javascript regular expressions in lua. It makes use of libregexp from https://bellard.org/quickjs/.
+Provides ECMAScript regular expressions for Lua 5.1, 5.2, 5.3, 5.4 and LuaJit. Uses libregexp from Fabrice Bellard's QuickJS.
 	]],
 	homepage = "https://github.com/kmarius/jsregexp",
 	license = "MIT",
