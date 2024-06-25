@@ -31,6 +31,14 @@
 
 #define streq(X, Y) ((*(X) == *(Y)) && strcmp(X, Y) == 0)
 
+// these two functions need to be defined for libregexp
+void *lre_realloc(void *opaque, void *ptr, size_t size) {
+  return realloc(ptr, size);
+}
+BOOL lre_check_stack_overflow(void *opaque, size_t alloca_size) {
+  return FALSE;
+}
+
 struct regexp {
   char *expr;
   uint8_t *bc;
@@ -332,7 +340,7 @@ static void regexp_pushflags(lua_State *lstate, const struct regexp *r) {
   const char *multiline = (flags & LRE_FLAG_MULTILINE) ? "m" : "";
   const char *named_groups = (flags & LRE_FLAG_NAMED_GROUPS) ? "n" : "";
   const char *dotall = (flags & LRE_FLAG_DOTALL) ? "s" : "";
-  const char *utf16 = (flags & LRE_FLAG_UTF16) ? "u" : "";
+  const char *utf16 = (flags & LRE_FLAG_UNICODE) ? "u" : "";
   const char *sticky = (flags & LRE_FLAG_STICKY) ? "y" : "";
   lua_pushfstring(lstate, "%s%s%s%s%s%s%s", ignorecase, global, multiline,
                   named_groups, dotall, utf16, sticky);
@@ -498,7 +506,7 @@ static int regexp_index(lua_State *lstate) {
     } else if (streq(key, "sticky")) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_STICKY);
     } else if (streq(key, "unicode")) {
-      lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_UTF16);
+      lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_UNICODE);
     } else if (streq(key, "source")) {
       lua_pushstring(lstate, r->expr);
     } else if (streq(key, "flags")) {
@@ -549,7 +557,7 @@ static int jsregexp_compile(lua_State *lstate) {
 
   if (utf8_contains_non_bmp(regexp)) {
     // bmp range works fine without utf16 flag
-    re_flags |= LRE_FLAG_UTF16;
+    re_flags |= LRE_FLAG_UNICODE;
   }
 
   if (!lua_isnoneornil(lstate, 2)) {
@@ -572,7 +580,7 @@ static int jsregexp_compile(lua_State *lstate) {
         re_flags |= LRE_FLAG_DOTALL;
         break;
       case 'u':
-        re_flags |= LRE_FLAG_UTF16;
+        re_flags |= LRE_FLAG_UNICODE;
         break;
       case 'y':
         re_flags |= LRE_FLAG_STICKY;
