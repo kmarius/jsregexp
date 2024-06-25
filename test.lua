@@ -1,4 +1,5 @@
 local jsregexp = require("jsregexp")
+local unpack = unpack or table.unpack
 
 local tests = 0
 local fails = 0
@@ -127,6 +128,50 @@ local function test_exec(str, regex, flags, want)
 					return fail(
 						string.format("named group %s mismatch, wanted %s, got %s", key, val, match.groups[key])
 					)
+				end
+			end
+		end
+		if match_wanted.indices and not match.indices then
+			return fail("expected indices table")
+		end
+		if not match_wanted.indices and match.indices then
+			return fail("expected no indices table")
+		end
+		if match_wanted.indices then
+			if match_wanted.indices.groups and not match.indices.groups then
+				return fail("expected indices.groups table")
+			end
+			if not match_wanted.indices.groups and match.indices.groups then
+				return fail("expected no indices.groups table")
+			end
+			for i = 0, #match.indices do
+				local a, b = unpack(match_wanted.indices[i])
+				local c, d = unpack(match.indices[i])
+				if a ~= c or b ~= d then
+					return fail(
+						string.format("wrong indices for group %d, expected {%d, %d}, got {%d, %d}", i, a, b, c, d)
+					)
+				end
+			end
+			if match_wanted.indices.groups then
+				for key, val in pairs(match_wanted.indices.groups) do
+					if not match_wanted.indices.groups[key] then
+						return fail(string.format("unexpected key in indices.groups: %s", key))
+					end
+					local a, b = unpack(match_wanted.indices.groups[key])
+					local c, d = unpack(val)
+					if a ~= c or b ~= d then
+						return fail(
+							string.format(
+								"wrong indices for group %s, expected {%d, %d}, got {%d, %d}",
+								key,
+								a,
+								b,
+								c,
+								d
+							)
+						)
+					end
 				end
 			end
 		end
@@ -388,42 +433,39 @@ test_call(
 -- test("จงฝ่าฟันพัฒนาวิชาการ", "(จงฝ่าฟันพัฒนาวิชาการ)", "", {{"จงฝ่าฟันพัฒนาวิชาการ", groups="จงฝ่าฟันพัฒนาวิชาการ"}})
 
 -- named groups:
-test_call(
-	"The quick brown fox jumps over the lazy dog",
-	"(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)",
-	"n",
-	{ { "The quick brown", groups = { "The", "quick", "brown" }, named_groups = { first_word = "The", third_word = "brown" } } }
-)
+test_call("The quick brown fox jumps over the lazy dog", "(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)", "n", {
+	{
+		"The quick brown",
+		groups = { "The", "quick", "brown" },
+		named_groups = { first_word = "The", third_word = "brown" },
+	},
+})
 test_call(
 	"The qüick bröwn föx jümps över the lazy dög",
 	"(?<first_word>[^ ]+) ([^ ]+) (?<third_word>[^ ]+)",
 	"n",
-	{ { "The qüick bröwn", groups = { "The", "qüick", "bröwn" }, named_groups = {
-		first_word = "The",
-		third_word = "bröwn",
-	} } }
-)
-test_call(
-	"The quick bröwn föx",
-	"(?<first_wörd>[^ ]+) ([^ ]+) (?<third_wörd>[^ ]+)",
-	"n",
 	{
 		{
-			"The quick bröwn",
-			groups = { "The", "quick", "bröwn" },
-			named_groups = { ["first_wörd"] = "The", ["third_wörd"] = "bröwn" },
+			"The qüick bröwn",
+			groups = { "The", "qüick", "bröwn" },
+			named_groups = {
+				first_word = "The",
+				third_word = "bröwn",
+			},
 		},
 	}
 )
-test_call(
-	"𝄞𝄞 𐐷",
-	"(?<word>[^ ]+)",
-	"ng",
+test_call("The quick bröwn föx", "(?<first_wörd>[^ ]+) ([^ ]+) (?<third_wörd>[^ ]+)", "n", {
 	{
-		{ "𝄞𝄞", groups = { "𝄞𝄞" }, named_groups = { word = "𝄞𝄞" } },
-		{ "𐐷", groups = { "𐐷" }, named_groups = { word = "𐐷" } },
-	}
-)
+		"The quick bröwn",
+		groups = { "The", "quick", "bröwn" },
+		named_groups = { ["first_wörd"] = "The", ["third_wörd"] = "bröwn" },
+	},
+})
+test_call("𝄞𝄞 𐐷", "(?<word>[^ ]+)", "ng", {
+	{ "𝄞𝄞", groups = { "𝄞𝄞" }, named_groups = { word = "𝄞𝄞" } },
+	{ "𐐷", groups = { "𐐷" }, named_groups = { word = "𐐷" } },
+})
 
 test_exec("The quick brown", "\\w+", "g", { { [0] = "The" }, { [0] = "quick" }, { [0] = "brown" } })
 test_exec(
@@ -432,15 +474,31 @@ test_exec(
 	"g",
 	{ { [0] = "The quick", "The", "quick" }, { [0] = "brown fox", "brown", "fox" } }
 )
-test_exec(
-	"The quick brown fox",
-	"(?<word1>\\w+) (\\w+)",
-	"g",
+test_exec("The quick brown fox", "(?<word1>\\w+) (\\w+)", "g", {
+	{ [0] = "The quick", "The", "quick", groups = { word1 = "The" } },
+	{ [0] = "brown fox", "brown", "fox", groups = { word1 = "brown" } },
+})
+
+test_exec("The Quick Brown Fox Jumps Over The Lazy Dog", "quick\\s(?<color>brown).+?(jumps)", "di", {
 	{
-		{ [0] = "The quick", "The", "quick", groups = { word1 = "The" } },
-		{ [0] = "brown fox", "brown", "fox", groups = { word1 = "brown" } },
-	}
-)
+		[0] = "Quick Brown Fox Jumps",
+		[1] = "Brown",
+		[2] = "Jumps",
+		indices = {
+			[0] = { 5, 25 },
+			[1] = { 11, 15 },
+			[2] = { 21, 25 },
+			groups = {
+				color = { 11, 15 },
+			},
+		},
+		index = 4,
+		input = "The Quick Brown Fox Jumps Over The Lazy Dog",
+		groups = {
+			color = "Brown",
+		},
+	},
+})
 
 test_test("The quick brown", "\\w+", "", { true })
 test_test("The quick brown", "\\d+", "", { false })
