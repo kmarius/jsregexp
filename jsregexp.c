@@ -335,6 +335,7 @@ static int regexp_gc(lua_State *lstate) {
 
 static void regexp_pushflags(lua_State *lstate, const struct regexp *r) {
   const int flags = lre_get_flags(r->bc);
+  const char *indices = (flags & LRE_FLAG_INDICES) ? "d" : "";
   const char *ignorecase = (flags & LRE_FLAG_IGNORECASE) ? "i" : "";
   const char *global = (flags & LRE_FLAG_GLOBAL) ? "g" : "";
   const char *multiline = (flags & LRE_FLAG_MULTILINE) ? "m" : "";
@@ -342,8 +343,8 @@ static void regexp_pushflags(lua_State *lstate, const struct regexp *r) {
   const char *dotall = (flags & LRE_FLAG_DOTALL) ? "s" : "";
   const char *utf16 = (flags & LRE_FLAG_UNICODE) ? "u" : "";
   const char *sticky = (flags & LRE_FLAG_STICKY) ? "y" : "";
-  lua_pushfstring(lstate, "%s%s%s%s%s%s%s", ignorecase, global, multiline,
-                  named_groups, dotall, utf16, sticky);
+  lua_pushfstring(lstate, "%s%s%s%s%s%s%s%s", indices, ignorecase, global,
+                  multiline, named_groups, dotall, utf16, sticky);
 }
 
 static int regexp_tostring(lua_State *lstate) {
@@ -394,6 +395,7 @@ static int regexp_exec(lua_State *lstate) {
 
   const int capture_count = lre_get_capture_count(r->bc);
   const char *group_names = lre_get_groupnames(r->bc);
+  const bool has_indices = lre_get_flags(r->bc) & LRE_FLAG_INDICES;
 
   const int ret =
       lre_exec(capture, r->bc, (uint8_t *)input->u.str8, rlast_index,
@@ -438,34 +440,94 @@ static int regexp_exec(lua_State *lstate) {
   }
   lua_setfield(lstate, -2, "index");
 
-  if (group_names) {
-    lua_newtable(lstate); // match.groups
+  if (has_indices) {
+    // [match]
+    lua_createtable(lstate, capture_count + 1, 0); // match.indices
+    // [match, indices]
+    if (group_names) {
+      // push indices.groups table, duplicate it and leave it below match
+      lua_createtable(lstate, 0, capture_count); // match.indices.groups
+      // [match, indices, groups]
+      lua_pushvalue(lstate, -1);
+      // [match, indices, groups, groups]
+      lua_insert(lstate, -4);
+      // [indices.groups, match, indices, groups]
+      lua_setfield(lstate, -2, "groups");
+      // [indices.groups, match, indices]
+    }
     lua_pushvalue(lstate, -1);
-    lua_setfield(lstate, -3, "groups"); // immediately insert into match
-    lua_insert(lstate, -2);             // leave table below the match table
+    // [..., match, indices, indices]
+    lua_setfield(lstate, -3, "indices");
+    // [..., match, indices]
+    lua_insert(lstate, -2); // leave table below the match table
+    // [..., indices, match]
   }
 
+  if (group_names) {
+    // [..., match]
+    lua_newtable(lstate); // match.groups
+    // [..., match, groups]
+    lua_pushvalue(lstate, -1);
+    // [..., match, groups, groups]
+    lua_setfield(lstate, -3, "groups"); // immediately insert into match
+    // [..., match, groups]
+    lua_insert(lstate, -2); // leave table below the match table
+    // [..., groups, match]
+  }
+
+  // [groups.indices?, indices?, groups?, match]
+
   for (int i = 0; i < capture_count; i++) {
+    uint32_t a, b;
     if (input->is_wide_char) {
-      const uint32_t a = input->indices[(capture[2 * i] - input->u.str8) / 2];
-      const uint32_t b =
-          input->indices[(capture[2 * i + 1] - input->u.str8) / 2];
+      a = input->indices[(capture[2 * i] - input->u.str8) / 2];
+      b = input->indices[(capture[2 * i + 1] - input->u.str8) / 2];
       lua_pushlstring(lstate, input->bstr + a, b - a);
     } else {
+      a = capture[2 * i] - input->u.str8;
+      b = capture[2 * i + 1] - input->u.str8;
       lua_pushlstring(lstate, (char *)capture[2 * i],
                       capture[2 * i + 1] - capture[2 * i]);
     }
+
+    if (has_indices) {
+      lua_createtable(lstate, 2, 0);
+      lua_pushinteger(lstate, a + 1);
+      lua_rawseti(lstate, -2, 1);
+      lua_pushinteger(lstate, b);
+      lua_rawseti(lstate, -2, 2);
+      // [..., match, string, {a, b}]
+      if (group_names) {
+        // [indices.groups, indices, groups, match, string, {a, b}]
+        if (i > 0 && *group_names) {
+          // if the current group is named, duplicate and insert into the
+          // correct table
+          lua_pushvalue(lstate, -1);
+          // [indices.groups, indices, groups, match, string, {a, b}, {a,b}]
+          lua_setfield(lstate, -7, group_names);
+        }
+        // [indices.groups, indices, groups, match, string, {a, b}]
+        lua_rawseti(lstate, -5, i);
+      } else {
+        // [indices, match, string, {a, b}]
+        lua_rawseti(lstate, -4, i);
+      }
+    }
+
     if (i > 0 && group_names) {
+      // [..., groups, match, string]
       // if the current group is named, duplicate and insert into the correct
       // table
       if (*group_names) {
         lua_pushvalue(lstate, -1);
+        // [..., groups, match, string, string]
         lua_setfield(lstate, -4, group_names);
         group_names += strlen(group_names);
       }
       group_names++;
     }
 
+    // [..., match, string]
     lua_rawseti(lstate, -2, i);
   }
 
@@ -507,6 +569,8 @@ static int regexp_index(lua_State *lstate) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_STICKY);
     } else if (streq(key, "unicode")) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_UNICODE);
+    } else if (streq(key, "has_indices")) {
+      lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_INDICES);
     } else if (streq(key, "source")) {
       lua_pushstring(lstate, r->expr);
     } else if (streq(key, "flags")) {
@@ -564,6 +628,9 @@ static int jsregexp_compile(lua_State *lstate) {
     const char *flags = luaL_checkstring(lstate, 2);
     while (*flags) {
       switch (*(flags++)) {
+      case 'd':
+        re_flags |= LRE_FLAG_INDICES;
+        break;
       case 'i':
         re_flags |= LRE_FLAG_IGNORECASE;
         break;
