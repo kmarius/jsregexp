@@ -46,10 +46,10 @@ On success, `compile` and `compile_safe` return a RegExp object. On failure, `co
 
 Each RegExp object `re` has the following fields
 ```lua
-re.last_index   -- the position at wchich the next match will be searched in re:exec or re:test (see notes below)
-re.source       -- the regexp string
+re.last_index   -- the position at which the next match will be searched in re:exec or re:test (see notes below)
+re.source       -- the pattern string
 re.flags        -- a string representing the active flags
-re.dot_all      -- is the dod_all flag set?
+re.dot_all      -- is the dot_all flag set?
 re.global       -- is the global flag set?
 re.has_indices  -- is the indices flag set?
 re.ignore_case  -- is the ignore_case flag set?
@@ -63,8 +63,8 @@ The RegExp object `re` has the following methods corresponding to JavaScript reg
 ```lua
 re:exec(str)                      -- returns the next match of re in str (see notes below)
 re:test(str)                      -- returns true if the regex matches str (see notes below)
-re:match(str)                     -- returns a list of all matches or nil if no match
-re:match_all(str)                 -- returns a closure that repeatedly calls re:exec, to be used in for-loops
+re:match(str)                     -- returns, for a global regexp, a list of all match strings or nil if no match, calls re:exec(str) otherwise
+re:match_all(str)                 -- returns a closure that repeatedly calls re:exec on a global regexp, to be used in for-loops
 re:match_all_list(str)            -- returns a list of all matches
 re:search(str)                    -- returns the 1-based index of the first match of re in str, or -1 if no match
 re:split(str, limit?)             -- splits str at re, at most limit times
