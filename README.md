@@ -32,6 +32,7 @@ jsregexp.compile_safe(regex, flags?)
 ```
 that take an ECMAScript regular expression as a string and an optional string of flags, most notably
 
+- `"d"` provide tables with begin/end indices of match groups in match objects
 - `"i"`: case insensitive search
 - `"g"`: match globally
 - `"n"`: enables named groups (not present in JavaScript, needs to be enabled manually if needed)
@@ -50,6 +51,7 @@ re.source       -- the regexp string
 re.flags        -- a string representing the active flags
 re.dot_all      -- is the dod_all flag set?
 re.global       -- is the global flag set?
+re.has_indices  -- is the indices flag set?
 re.ignore_case  -- is the ignore_case flag set?
 re.multiline    -- is the multiline flag set?
 re.sticky       -- is the sticky flag set?
@@ -88,6 +90,8 @@ m.input          -- the input string
 m.capture_count  -- number of capture groups
 m.index          -- start of the capture (1-based)
 m.groups         -- table of the named groups and their content
+m.indices        -- table of begin/end indices of all match groups (if "d" flag is set)
+m.indices.groups -- table of named groups and their begin/end indices (if "d" flag is set)
 ```
 Calling `tostring` on a match object returns the full  match `m[0]`.
 

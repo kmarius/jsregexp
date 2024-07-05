@@ -1,4 +1,5 @@
 local jsregexp = require("jsregexp")
+local unpack = unpack or table.unpack
 
 local tests = 0
 local fails = 0
@@ -65,10 +66,17 @@ local function test_call(str, regex, flags, want)
 				fails = fails + 1
 				return
 			end
-			for k,v in pairs(want.named_groups) do
+			for k, v in pairs(want.named_groups) do
 				if val.named_groups[k] ~= v then
 					fails = fails + 1
-					print(string.format("named group mismatch group '%s': expected '%s', actual '%s'", k, v, val.named_groups[k]))
+					print(
+						string.format(
+							"named group mismatch group '%s': expected '%s', actual '%s'",
+							k,
+							v,
+							val.named_groups[k]
+						)
+					)
 					return
 				end
 			end
@@ -117,7 +125,53 @@ local function test_exec(str, regex, flags, want)
 		if match_wanted.groups then
 			for key, val in pairs(match_wanted.groups) do
 				if val ~= match.groups[key] then
-					return fail(string.format("named group %s mismatch, wanted %s, got %s", key, val, match.groups[key]))
+					return fail(
+						string.format("named group %s mismatch, wanted %s, got %s", key, val, match.groups[key])
+					)
+				end
+			end
+		end
+		if match_wanted.indices and not match.indices then
+			return fail("expected indices table")
+		end
+		if not match_wanted.indices and match.indices then
+			return fail("expected no indices table")
+		end
+		if match_wanted.indices then
+			if match_wanted.indices.groups and not match.indices.groups then
+				return fail("expected indices.groups table")
+			end
+			if not match_wanted.indices.groups and match.indices.groups then
+				return fail("expected no indices.groups table")
+			end
+			for i = 0, #match.indices do
+				local a, b = unpack(match_wanted.indices[i])
+				local c, d = unpack(match.indices[i])
+				if a ~= c or b ~= d then
+					return fail(
+						string.format("wrong indices for group %d, expected {%d, %d}, got {%d, %d}", i, a, b, c, d)
+					)
+				end
+			end
+			if match_wanted.indices.groups then
+				for key, val in pairs(match_wanted.indices.groups) do
+					if not match_wanted.indices.groups[key] then
+						return fail(string.format("unexpected key in indices.groups: %s", key))
+					end
+					local a, b = unpack(match_wanted.indices.groups[key])
+					local c, d = unpack(val)
+					if a ~= c or b ~= d then
+						return fail(
+							string.format(
+								"wrong indices for group %s, expected {%d, %d}, got {%d, %d}",
+								key,
+								a,
+								b,
+								c,
+								d
+							)
+						)
+					end
 				end
 			end
 		end
@@ -249,7 +303,7 @@ local function test_split(str, regex, flags, want)
 	end
 	local split = r:split(str)
 	local min = math.min(#split, #want)
-	for i = 1,min do
+	for i = 1, min do
 		local w = want[i]
 		if w ~= split[i] then
 			return fail("split mismatch, wanted %s, got %s", w, split[i])
@@ -286,95 +340,187 @@ test_compile("dummy", "[", "", nil)
 -- (luajit at least..)
 test_compile("dummy", string.char(0xfd, 166, 178, 165, 138, 183), "", nil)
 
-test_call("dummy", ".", "", {{"d"}})
-test_call("du", ".", "g", {{"d"}, {"u"}})
+test_call("dummy", ".", "", { { "d" } })
+test_call("du", ".", "g", { { "d" }, { "u" } })
 
 test_call("dummy", "c", "", {})
 test_call("dummy", "c", "g", {})
-test_call("dummy", "d", "", {{"d"}})
-test_call("dummy", "m", "", {{"m"}})
-test_call("dummy", "m", "g", {{"m"}, {"m"}})
+test_call("dummy", "d", "", { { "d" } })
+test_call("dummy", "m", "", { { "m" } })
+test_call("dummy", "m", "g", { { "m" }, { "m" } })
 
-test_call("dummy", "(dummy)", "", {{"dummy", groups = {"dummy"}}})
-test_call("The quick brown fox jumps over the lazy dog", "\\w+", "", {{"The"}})
-test_call("The quick brown fox jumps over the lazy dog", "\\w+", "g", {{"The"}, {"quick"}, {"brown"}, {"fox"}, {"jumps"}, {"over"}, {"the"}, {"lazy"}, {"dog"}})
-test_call("The quick brown fox jumps over the lazy dog", "[aeiou]{2,}", "g", {{"ui"}})
+test_call("dummy", "(dummy)", "", { { "dummy", groups = { "dummy" } } })
+test_call("The quick brown fox jumps over the lazy dog", "\\w+", "", { { "The" } })
+test_call(
+	"The quick brown fox jumps over the lazy dog",
+	"\\w+",
+	"g",
+	{ { "The" }, { "quick" }, { "brown" }, { "fox" }, { "jumps" }, { "over" }, { "the" }, { "lazy" }, { "dog" } }
+)
+test_call("The quick brown fox jumps over the lazy dog", "[aeiou]{2,}", "g", { { "ui" } })
 
-test_call("äöü", ".", "g", {{"ä"}, {"ö"}, {"ü"}})
-test_call("äöü", ".", "", {{"ä"}})
-test_call("ÄÖÜ", ".", "", {{"Ä"}})
-test_call("äöü", "[äöü]", "g", {{"ä"}, {"ö"}, {"ü"}})
-test_call("äöü", "[äöü]*", "g", {{"äöü"}, {""}})
-test_call("äÄ", "ä", "gi", {{"ä"}, {"Ä"}})
-test_call("öäü.haha", "([^.]*)\\.(.*)", "", {{"öäü.haha", groups={"öäü", "haha"}}})
+test_call("äöü", ".", "g", { { "ä" }, { "ö" }, { "ü" } })
+test_call("äöü", ".", "", { { "ä" } })
+test_call("ÄÖÜ", ".", "", { { "Ä" } })
+test_call("äöü", "[äöü]", "g", { { "ä" }, { "ö" }, { "ü" } })
+test_call("äöü", "[äöü]*", "g", { { "äöü" }, { "" } })
+test_call("äÄ", "ä", "gi", { { "ä" }, { "Ä" } })
+test_call("öäü.haha", "([^.]*)\\.(.*)", "", { { "öäü.haha", groups = { "öäü", "haha" } } })
 
-test_call("𝄞", "𝄞", "", {{"𝄞"}})
+test_call("𝄞", "𝄞", "", { { "𝄞" } })
 -- these empty matches are expected and consistent with vscode
-test_call("öö öö", "ö*", "g", {{"öö"}, {""}, {"öö"}, {""}})
-test_call("𝄞𝄞 𝄞𝄞", "[^ ]*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {""}})
-test_call("𝄞𝄞", "𝄞*", "", {{"𝄞𝄞"}})
+test_call("öö öö", "ö*", "g", { { "öö" }, { "" }, { "öö" }, { "" } })
+test_call("𝄞𝄞 𝄞𝄞", "[^ ]*", "g", { { "𝄞𝄞" }, { "" }, { "𝄞𝄞" }, { "" } })
+test_call("𝄞𝄞", "𝄞*", "", { { "𝄞𝄞" } })
 -- doesn't work in vscode, matches only a single 𝄞 each time:
-test_call("𝄞𝄞𐐷𝄞𝄞", "𝄞*", "g", {{"𝄞𝄞"}, {""}, {"𝄞𝄞"}, {""}})
+test_call("𝄞𝄞𐐷𝄞𝄞", "𝄞*", "g", { { "𝄞𝄞" }, { "" }, { "𝄞𝄞" }, { "" } })
 -- vscode actually splits the center unicode character and produces an extra empty match. we don't.
-test_call("öö𐐷öö", "ö*", "g", {{"öö"}, {""}, {"öö"}, {""}})
-test_call("a", "𝄞|a", "g", {{"a"}}) -- utf16 regex, ascii input
+test_call("öö𐐷öö", "ö*", "g", { { "öö" }, { "" }, { "öö" }, { "" } })
+test_call("a", "𝄞|a", "g", { { "a" } }) -- utf16 regex, ascii input
 
-test_call("κόσμε", "(κόσμε)", "", {{"κόσμε", groups={"κόσμε"}}})
+test_call("κόσμε", "(κόσμε)", "", { { "κόσμε", groups = { "κόσμε" } } })
 
-test_call("jordbær fløde på", "(jordbær fløde på)", "", {{"jordbær fløde på", groups={"jordbær fløde på"}}})
+test_call(
+	"jordbær fløde på",
+	"(jordbær fløde på)",
+	"",
+	{ { "jordbær fløde på", groups = { "jordbær fløde på" } } }
+)
 
-test_call("Heizölrückstoßabdämpfung", "(Heizölrückstoßabdämpfung)", "", {{"Heizölrückstoßabdämpfung", groups={"Heizölrückstoßabdämpfung"}}})
+test_call(
+	"Heizölrückstoßabdämpfung",
+	"(Heizölrückstoßabdämpfung)",
+	"",
+	{ { "Heizölrückstoßabdämpfung", groups = { "Heizölrückstoßabdämpfung" } } }
+)
 
-test_call("Fête l'haï volapük", "(Fête l'haï volapük)", "", {{"Fête l'haï volapük", groups={"Fête l'haï volapük"}}})
+test_call(
+	"Fête l'haï volapük",
+	"(Fête l'haï volapük)",
+	"",
+	{ { "Fête l'haï volapük", groups = { "Fête l'haï volapük" } } }
+)
 
-test_call("Árvíztűrő tükörfúrógép", "(Árvíztűrő tükörfúrógép)", "", {{"Árvíztűrő tükörfúrógép", groups={"Árvíztűrő tükörfúrógép"}}})
+test_call(
+	"Árvíztűrő tükörfúrógép",
+	"(Árvíztűrő tükörfúrógép)",
+	"",
+	{ { "Árvíztűrő tükörfúrógép", groups = { "Árvíztűrő tükörfúrógép" } } }
+)
 
-test_call("いろはにほへとちりぬるを", "(いろはにほへとちりぬるを)", "", {{"いろはにほへとちりぬるを", groups={"いろはにほへとちりぬるを"}}})
+test_call(
+	"いろはにほへとちりぬるを",
+	"(いろはにほへとちりぬるを)",
+	"",
+	{ { "いろはにほへとちりぬるを", groups = { "いろはにほへとちりぬるを" } } }
+)
 
-test_call("Съешь же ещё этих мягких французских булок да выпей чаю", "(Съешь же ещё этих мягких французских булок да выпей чаю)", "", {{"Съешь же ещё этих мягких французских булок да выпей чаю", groups={"Съешь же ещё этих мягких французских булок да выпей чаю"}}})
+test_call(
+	"Съешь же ещё этих мягких французских булок да выпей чаю",
+	"(Съешь же ещё этих мягких французских булок да выпей чаю)",
+	"",
+	{
+		{
+			"Съешь же ещё этих мягких французских булок да выпей чаю",
+			groups = {
+				"Съешь же ещё этих мягких французских булок да выпей чаю",
+			},
+		},
+	}
+)
 
 -- no idea how thai works
 -- test("จงฝ่าฟันพัฒนาวิชาการ", "(จงฝ่าฟันพัฒนาวิชาการ)", "", {{"จงฝ่าฟันพัฒนาวิชาการ", groups="จงฝ่าฟันพัฒนาวิชาการ"}})
 
-
 -- named groups:
-test_call("The quick brown fox jumps over the lazy dog", "(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)", "n",
-{{"The quick brown", groups={"The", "quick", "brown"}, named_groups={first_word="The", third_word="brown"}}}
+test_call("The quick brown fox jumps over the lazy dog", "(?<first_word>\\w+) (\\w+) (?<third_word>\\w+)", "n", {
+	{
+		"The quick brown",
+		groups = { "The", "quick", "brown" },
+		named_groups = { first_word = "The", third_word = "brown" },
+	},
+})
+test_call(
+	"The qüick bröwn föx jümps över the lazy dög",
+	"(?<first_word>[^ ]+) ([^ ]+) (?<third_word>[^ ]+)",
+	"n",
+	{
+		{
+			"The qüick bröwn",
+			groups = { "The", "qüick", "bröwn" },
+			named_groups = {
+				first_word = "The",
+				third_word = "bröwn",
+			},
+		},
+	}
 )
-test_call("The qüick bröwn föx jümps över the lazy dög", "(?<first_word>[^ ]+) ([^ ]+) (?<third_word>[^ ]+)", "n",
-{{"The qüick bröwn", groups={"The", "qüick", "bröwn"}, named_groups={first_word="The", third_word="bröwn"}}}
-)
-test_call("The quick bröwn föx", "(?<first_wörd>[^ ]+) ([^ ]+) (?<third_wörd>[^ ]+)", "n",
-{{"The quick bröwn", groups={"The", "quick", "bröwn"}, named_groups={["first_wörd"]="The", ["third_wörd"]="bröwn"}}}
-)
-test_call("𝄞𝄞 𐐷", "(?<word>[^ ]+)", "ng", {{"𝄞𝄞", groups={"𝄞𝄞"}, named_groups={word="𝄞𝄞"}}, {"𐐷", groups={"𐐷"}, named_groups={word="𐐷"}}})
+test_call("The quick bröwn föx", "(?<first_wörd>[^ ]+) ([^ ]+) (?<third_wörd>[^ ]+)", "n", {
+	{
+		"The quick bröwn",
+		groups = { "The", "quick", "bröwn" },
+		named_groups = { ["first_wörd"] = "The", ["third_wörd"] = "bröwn" },
+	},
+})
+test_call("𝄞𝄞 𐐷", "(?<word>[^ ]+)", "ng", {
+	{ "𝄞𝄞", groups = { "𝄞𝄞" }, named_groups = { word = "𝄞𝄞" } },
+	{ "𐐷", groups = { "𐐷" }, named_groups = { word = "𐐷" } },
+})
 
-test_exec("The quick brown", "\\w+", "g", {{[0]="The"}, {[0]="quick"}, {[0]="brown"}})
-test_exec("The quick brown fox", "(\\w+) (\\w+)", "g", {{[0]="The quick", "The", "quick"}, {[0]="brown fox", "brown", "fox"}})
-test_exec("The quick brown fox", "(?<word1>\\w+) (\\w+)", "g",
-{{[0]="The quick", "The", "quick", groups={word1="The"}}, {[0]="brown fox", "brown", "fox", groups={word1="brown"}}})
+test_exec("The quick brown", "\\w+", "g", { { [0] = "The" }, { [0] = "quick" }, { [0] = "brown" } })
+test_exec(
+	"The quick brown fox",
+	"(\\w+) (\\w+)",
+	"g",
+	{ { [0] = "The quick", "The", "quick" }, { [0] = "brown fox", "brown", "fox" } }
+)
+test_exec("The quick brown fox", "(?<word1>\\w+) (\\w+)", "g", {
+	{ [0] = "The quick", "The", "quick", groups = { word1 = "The" } },
+	{ [0] = "brown fox", "brown", "fox", groups = { word1 = "brown" } },
+})
 
-test_test("The quick brown", "\\w+", "", {true})
-test_test("The quick brown", "\\d+", "", {false})
-test_test("The quick brown", "\\w+", "g", {true, true, true})
+test_exec("The Quick Brown Fox Jumps Over The Lazy Dog", "quick\\s(?<color>brown).+?(jumps)", "di", {
+	{
+		[0] = "Quick Brown Fox Jumps",
+		[1] = "Brown",
+		[2] = "Jumps",
+		indices = {
+			[0] = { 5, 25 },
+			[1] = { 11, 15 },
+			[2] = { 21, 25 },
+			groups = {
+				color = { 11, 15 },
+			},
+		},
+		index = 4,
+		input = "The Quick Brown Fox Jumps Over The Lazy Dog",
+		groups = {
+			color = "Brown",
+		},
+	},
+})
+
+test_test("The quick brown", "\\w+", "", { true })
+test_test("The quick brown", "\\d+", "", { false })
+test_test("The quick brown", "\\w+", "g", { true, true, true })
 
 test_match("The quick brown", "\\d+", "g", nil)
-test_match("The quick brown", "\\w+", "g", {"The", "quick", "brown"})
+test_match("The quick brown", "\\w+", "g", { "The", "quick", "brown" })
 
 test_match_all_list("The quick brown", "\\d+", "g", {})
-test_match_all_list("The quick brown", "\\w+", "g", {"The", "quick", "brown"})
+test_match_all_list("The quick brown", "\\w+", "g", { "The", "quick", "brown" })
 
 test_search("The quick brown", "nothing", "g", -1)
 test_search("The quick brown", "quick", "g", 5)
 
-test_split("abc", "x", "g", {"abc"})
+test_split("abc", "x", "g", { "abc" })
 test_split("", "a?", "g", {})
-test_split("", "a", "g", {""})
-test_split("1-2-3", "-", "g", {"1", "2", "3"})
-test_split("1-2-", "-", "g", {"1", "2", ""})
-test_split("-2-3", "-", "g", {"", "2", "3"})
-test_split("--", "-", "g", {"", "", ""})
-test_split("Hello 1 word. Sentence number 2.", "(\\d)", "g", {"Hello ", "1", " word. Sentence number ", "2", "."})
+test_split("", "a", "g", { "" })
+test_split("1-2-3", "-", "g", { "1", "2", "3" })
+test_split("1-2-", "-", "g", { "1", "2", "" })
+test_split("-2-3", "-", "g", { "", "2", "3" })
+test_split("--", "-", "g", { "", "", "" })
+test_split("Hello 1 word. Sentence number 2.", "(\\d)", "g", { "Hello ", "1", " word. Sentence number ", "2", "." })
 
 test_replace("a1b2c", "X", "g", "_", "a1b2c")
 test_replace("a1b2c", "\\d", "", "_", "a_b2c")
