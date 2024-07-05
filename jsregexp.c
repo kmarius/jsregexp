@@ -241,8 +241,14 @@ static int regexp_exec(lua_State *lstate) {
   uint32_t rlast_index = r->last_index;
   // translate wide char to correct index
   if (input->is_wide_char) {
-    // only translate if possible
-    if (rlast_index <= input->bstr_len) {
+    // only translate indices if possible
+    if (rlast_index > 0 && rlast_index <= input->bstr_len) {
+      // move to the next valid index, rlast_index might be somewhere within a
+      // multibyte character
+      while (rlast_index < input->bstr_len &&
+             !input->rev_indices[rlast_index]) {
+        rlast_index++;
+      }
       rlast_index = input->rev_indices[rlast_index];
     }
   }

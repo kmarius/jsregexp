@@ -12,17 +12,16 @@ function jsregexp.mt.match(re, str)
 		return re:exec(jstr)
 	end
 	local matches = {}
-	local val
 
 	re.last_index = 1
 
 	while true do
-		val = re:exec(jstr)
-		if val == nil then
+		local match = re:exec(jstr)
+		if match == nil then
 			break
 		end
-		table.insert(matches, val)
-		if #val[0] == 0 then
+		table.insert(matches, match[0])
+		if #match[0] == 0 then
 			re.last_index = re.last_index + 1
 		end
 	end
@@ -33,11 +32,24 @@ function jsregexp.mt.match(re, str)
 end
 
 function jsregexp.mt.match_all(re, str)
+	if not re.global then
+		error("match_all must be called with on global RegExp")
+	end
 	-- must duplicate (according to string.proptype.matchAll spec)
+	-- TODO: since nobody can "subclass" this, we can probably just
+	-- restore last_index, as it is the only way the regexp object is mutated
 	local re2 = jsregexp.compile(re.source, re.flags)
 	local jstr = jsregexp.to_jsstring(str)
+	re2.last_index = re.last_index
 	return function()
-		return re2:exec(jstr)
+		local match = re2:exec(jstr)
+		if not match then
+			return nil
+		end
+		if #match[0] == 0 then
+			re2.last_index = re2.last_index + 1
+		end
+		return match
 	end
 end
 
