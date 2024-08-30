@@ -7,7 +7,6 @@ INCLUDE_DIR = -I/usr/include/lua5.1
 LDLIBS =
 LDFLAGS = -shared
 CFLAGS = $(INCLUDE_DIR) -O2 -fPIC
-CC = gcc
 
 .PHONY: all clean
 
