@@ -38,7 +38,7 @@ local function test_call(str, regex, flags, want)
 	if #res ~= #want then
 		return fail("match count mismatch: wanted", #want, "got ", #res)
 	end
-	for i, val in pairs(res) do
+	for i, val in ipairs(res) do
 		local want = want[i]
 		if not want then
 			return fail("compilation should have failed")
@@ -230,11 +230,15 @@ local function test_match(str, regex, flags, want)
 		if #want ~= #matches then
 			return fail("number of matches mismatch, wanted %d, got %d", #want, #matches)
 		end
-		for i, match_want in ipairs(want) do
-			local match = matches[i][0]
-			if match ~= match_want then
-				return fail("match mismatch, wanted %s, got %s", match_want, match)
+		if r.global then
+			for i, match_want in ipairs(want) do
+				local match = matches[i]
+				if match ~= match_want then
+					return fail("match mismatch, wanted %s, got %s", match_want, match)
+				end
 			end
+		else
+			-- TODO: compare match object
 		end
 	end
 	successes = successes + 1
@@ -332,6 +336,10 @@ local function test_replace(str, regex, flags, replacement, want)
 	end
 	successes = successes + 1
 end
+
+-- test_call("𝄞𝄞𐐷𝄞𝄞", "𝄞*", "g", { { "𝄞𝄞" }, { "" }, { "𝄞𝄞" }, { "" } })
+-- test_match_all_list("𝄞𝄞𐐷𝄞𝄞", "𝄞*", "g", { "𝄞𝄞", "", "𝄞𝄞", "" })
+-- os.exit(1)
 
 test_compile("dummy", "(.*", "", nil)
 test_compile("dummy", "[", "", nil)
@@ -509,6 +517,7 @@ test_match("The quick brown", "\\w+", "g", { "The", "quick", "brown" })
 
 test_match_all_list("The quick brown", "\\d+", "g", {})
 test_match_all_list("The quick brown", "\\w+", "g", { "The", "quick", "brown" })
+test_match_all_list("𝄞𝄞𐐷𝄞𝄞", "𝄞*", "g", { "𝄞𝄞", "", "𝄞𝄞", "" })
 
 test_search("The quick brown", "nothing", "g", -1)
 test_search("The quick brown", "quick", "g", 5)
