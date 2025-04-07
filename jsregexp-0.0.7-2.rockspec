@@ -1,8 +1,7 @@
 package = "jsregexp"
-version = "0.0.7-1"
+version = "0.0.7-2"
 source = {
 	url = "git://github.com/kmarius/jsregexp.git",
-	branch = "master",
 	tag = "v0.0.7",
 }
 description = {
