@@ -135,7 +135,7 @@ static int jsstring_new(lua_State *lstate) {
                                           &indices, &rev_indices);
 
     if (!input_utf16) {
-      luaL_error(lstate, "malformed unicode");
+      return luaL_error(lstate, "malformed unicode");
     }
 
     ud = lua_newuserdata(lstate, sizeof(*ud));
@@ -221,7 +221,7 @@ static int regexp_tostring(lua_State *lstate) {
 static int match_tostring(lua_State *lstate) {
   // luaL_getmetatable(lstate, JSREGEXP_MATCH);
   // if (!lua_getmetatable(lstate, 1) || !lua_equal(lstate, -1, -2)) {
-  //   luaL_argerror(lstate, 1, "match object expected");
+  //   return luaL_argerror(lstate, 1, "match object expected");
   // }
   lua_rawgeti(lstate, 1, 0);
   return 1;
@@ -270,7 +270,7 @@ static int regexp_exec(lua_State *lstate) {
                input->len, input->is_wide_char ? 1 : 0, NULL);
 
   if (ret < 0) {
-    luaL_error(lstate, "out of memory in regexp execution");
+    return luaL_error(lstate, "out of memory in regexp execution");
   }
 
   if (ret == 0) {
@@ -460,7 +460,7 @@ static int regexp_newindex(lua_State *lstate) {
     luaL_argcheck(lstate, ind >= 1, 3, "last_index must be positive");
     r->last_index = ind - 1;
   } else {
-    luaL_argerror(lstate, 2, "unrecognized key");
+    return luaL_argerror(lstate, 2, "unrecognized key");
   }
 
   return 0;
@@ -483,7 +483,7 @@ static int jsregexp_compile(lua_State *lstate) {
   // lre_compile can segfault if the input contains 0x8f, which
   // indicated the beginning of a six byte sequence, but is now illegal.
   if (strchr(regexp, 0xfd)) {
-    luaL_argerror(lstate, 1, "malformed unicode");
+    return luaL_argerror(lstate, 1, "malformed unicode");
   }
 
   if (utf8_contains_non_bmp(regexp)) {
@@ -528,7 +528,7 @@ static int jsregexp_compile(lua_State *lstate) {
                             strlen(regexp), re_flags, NULL);
 
   if (!bc) {
-    luaL_argerror(lstate, 1, error_msg);
+    return luaL_argerror(lstate, 1, error_msg);
   }
 
   struct regexp *ud = lua_newuserdata(lstate, sizeof *ud);
