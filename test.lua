@@ -182,7 +182,6 @@ local function test_match(str, regex, flags, want)
 end
 
 local function test_match_all_list(str, regex, flags, want)
-	print(str, "~", regex, "flags")
 	local function fail(fmt, ...)
 		print(str, regex, flags, want)
 		print(string.format(fmt, ...))
