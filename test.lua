@@ -39,7 +39,7 @@ local function test_exec(str, regex, flags, want)
 		if match and not match_wanted then
 			return fail(string.format("no match expected, got %s", match))
 		end
-		if not match and match_wanted then
+		if not match then
 			return fail(string.format("match expected, wanted %s", match_wanted))
 		end
 		if #match_wanted ~= #match then
@@ -282,6 +282,7 @@ test_compile("dummy", "[", "", nil)
 -- (luajit at least..)
 test_compile("dummy", string.char(0xfd, 166, 178, 165, 138, 183), "", nil)
 
+test_exec("wut", "wot", "", {})
 test_exec("The quick brown", "\\w+", "g", { { [0] = "The" }, { [0] = "quick" }, { [0] = "brown" } })
 test_exec(
 	"The quick brown fox",
@@ -338,6 +339,12 @@ test_split("-2-3", "-", "g", { "", "2", "3" })
 test_split("--", "-", "g", { "", "", "" })
 test_split("Hello 1 word. Sentence number 2.", "(\\d)", "g", { "Hello ", "1", " word. Sentence number ", "2", "." })
 
+test_replace("a b", "\\w+", "", "_", "_ b")
+test_replace("a b", "\\w+", "", function()
+	return "_"
+end, "_ b")
+test_replace("12 34", "\\d+", "", "_", "_ 34")
+test_replace("123 456", "\\d+", "", "_", "_ 456")
 test_replace("a1b2c", "X", "g", "_", "a1b2c")
 test_replace("a1b2c", "\\d", "", "_", "a_b2c")
 test_replace("a1b2c", "\\d", "g", "_", "a_b_c")

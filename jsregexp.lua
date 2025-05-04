@@ -241,7 +241,7 @@ function jsregexp.mt.replace(re, str, replacement)
 		else
 			table.insert(output, get_substitution(match, str, replacement))
 		end
-		table.insert(output, string.sub(str, re.last_index + #match[0] + 1))
+		table.insert(output, string.sub(str, match.index + #match[0]))
 	else
 		table.insert(output, str)
 	end
