@@ -22,15 +22,15 @@ jobs:
           ]
           # TODO: add windows-latest once: https://github.com/leafo/gh-actions-lua/pull/23 is fully released
         # machineTag: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        machineTag: ["ubuntu-latest", "macos-latest"]
+        machineTag: ["ubuntu-latest"]
         # machineTag: ["ubuntu-latest", "windows-latest"]
     runs-on: ${{ matrix.machineTag }}
     steps:
       - uses: actions/checkout@v2
-      - uses: leafo/gh-actions-lua@v9
+      - uses: leafo/gh-actions-lua@v11
         with:
           luaVersion: ${{ matrix.luaVersion }}
-      - uses: leafo/gh-actions-luarocks@v4
+      - uses: leafo/gh-actions-luarocks@v5
         with:
           luarocksVersion: "3.9.1"
       - name: build
