@@ -22,8 +22,8 @@ jobs:
           ]
           # TODO: add windows-latest once: https://github.com/leafo/gh-actions-lua/pull/23 is fully released
         # machineTag: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        machineTag: ["ubuntu-latest"]
-        # machineTag: ["ubuntu-latest", "windows-latest"]
+        # machineTag: ["ubuntu-latest", "macos-latest"]
+        machineTag: ["ubuntu-latest", "windows-latest"]
     runs-on: ${{ matrix.machineTag }}
     steps:
       - uses: actions/checkout@v2
