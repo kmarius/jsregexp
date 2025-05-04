@@ -195,6 +195,10 @@ local function get_substitution(match, str, replacement)
 end
 
 function jsregexp.mt.replace_all(re, str, replacement)
+	if not re.global then
+		error("replace_all must be called with a global RegExp")
+	end
+
 	local jstr = jsregexp.to_jsstring(str)
 
 	re.last_index = 1
