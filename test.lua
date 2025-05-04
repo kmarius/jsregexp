@@ -275,6 +275,24 @@ local function test_replace(str, regex, flags, replacement, want)
 	successes = successes + 1
 end
 
+local function test_replace_all(str, regex, flags, replacement, want)
+	local function fail(fmt, ...)
+		print(str, regex, flags, want)
+		print(string.format(fmt, ...))
+		fails = fails + 1
+	end
+	tests = tests + 1
+	local r = jsregexp.compile_safe(regex, flags)
+	if not r then
+		return fail("compilation error")
+	end
+	local res = r:replace(str, replacement)
+	if res ~= want then
+		return fail("replacement mismatch, wanted %s, got %s", want, res)
+	end
+	successes = successes + 1
+end
+
 test_compile("dummy", "(.*", "", nil)
 test_compile("dummy", "[", "", nil)
 
@@ -350,6 +368,18 @@ test_replace("a1b2c", "\\d", "", "_", "a_b2c")
 test_replace("a1b2c", "\\d", "g", "_", "a_b_c")
 test_replace("a1b2c", "(\\d)(.)", "g", "$1", "a12")
 test_replace("a1b2c", "(\\d)(.)", "g", "$2", "abc")
+
+test_replace_all("a b", "\\w+", "g", "_", "_ _")
+test_replace_all("a b", "\\w+", "g", function()
+	return "_"
+end, "_ _")
+test_replace_all("12 34", "\\d+", "g", "_", "_ _")
+test_replace_all("123 456", "\\d+", "g", "_", "_ _")
+test_replace_all("a1b2c", "X", "g", "_", "a1b2c")
+test_replace_all("a1b2c", "\\d", "g", "_", "a_b_c")
+test_replace_all("a1b2c", "\\d", "g", "_", "a_b_c")
+test_replace_all("a1b2c", "(\\d)(.)", "g", "$1", "a12")
+test_replace_all("a1b2c", "(\\d)(.)", "g", "$2", "abc")
 
 local bold_green = "\27[1;32m"
 local bold_red = "\27[1;31m"
