@@ -275,14 +275,10 @@ local function test_replace(str, regex, flags, replacement, want)
 	successes = successes + 1
 end
 
--- test_call("𝄞𝄞𐐷𝄞𝄞", "𝄞*", "g", { { "𝄞𝄞" }, { "" }, { "𝄞𝄞" }, { "" } })
--- test_match_all_list("𝄞𝄞𐐷𝄞𝄞", "𝄞*", "g", { "𝄞𝄞", "", "𝄞𝄞", "" })
--- os.exit(1)
-
 test_compile("dummy", "(.*", "", nil)
 test_compile("dummy", "[", "", nil)
 
--- 0xfd (together with other wird chars) crashes lre_compile if not caught
+-- 0xfd (together with other weird chars) crashes lre_compile if not caught
 -- (luajit at least..)
 test_compile("dummy", string.char(0xfd, 166, 178, 165, 138, 183), "", nil)
 

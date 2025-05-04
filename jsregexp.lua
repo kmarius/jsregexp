@@ -33,7 +33,7 @@ end
 
 function jsregexp.mt.match_all(re, str)
 	if not re.global then
-		error("match_all must be called with on global RegExp")
+		error("match_all must be called with a global RegExp")
 	end
 	-- must duplicate (according to string.proptype.matchAll spec)
 	-- TODO: since nobody can "subclass" this, we can probably just
