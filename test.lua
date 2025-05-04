@@ -39,7 +39,7 @@ local function test_exec(str, regex, flags, want)
 		if match and not match_wanted then
 			return fail(string.format("no match expected, got %s", match))
 		end
-		if not match and match_wanted then
+		if not match then
 			return fail(string.format("match expected, wanted %s", match_wanted))
 		end
 		if #match_wanted ~= #match then
@@ -167,18 +167,21 @@ local function test_match(str, regex, flags, want)
 		if #want ~= #matches then
 			return fail("number of matches mismatch, wanted %d, got %d", #want, #matches)
 		end
-		for i, match_want in ipairs(want) do
-			local match = matches[i][0]
-			if match ~= match_want then
-				return fail("match mismatch, wanted %s, got %s", match_want, match)
+		if r.global then
+			for i, match_want in ipairs(want) do
+				local match = matches[i]
+				if match ~= match_want then
+					return fail("match mismatch, wanted %s, got %s", match_want, match)
+				end
 			end
+		else
+			-- TODO: compare match object
 		end
 	end
 	successes = successes + 1
 end
 
 local function test_match_all_list(str, regex, flags, want)
-	print(str, "~", regex, "flags")
 	local function fail(fmt, ...)
 		print(str, regex, flags, want)
 		print(string.format(fmt, ...))
@@ -271,13 +274,32 @@ local function test_replace(str, regex, flags, replacement, want)
 	successes = successes + 1
 end
 
+local function test_replace_all(str, regex, flags, replacement, want)
+	local function fail(fmt, ...)
+		print(str, regex, flags, want)
+		print(string.format(fmt, ...))
+		fails = fails + 1
+	end
+	tests = tests + 1
+	local r = jsregexp.compile_safe(regex, flags)
+	if not r then
+		return fail("compilation error")
+	end
+	local res = r:replace(str, replacement)
+	if res ~= want then
+		return fail("replacement mismatch, wanted %s, got %s", want, res)
+	end
+	successes = successes + 1
+end
+
 test_compile("dummy", "(.*", "", nil)
 test_compile("dummy", "[", "", nil)
 
--- 0xfd (together with other wird chars) crashes lre_compile if not caught
+-- 0xfd (together with other weird chars) crashes lre_compile if not caught
 -- (luajit at least..)
 test_compile("dummy", string.char(0xfd, 166, 178, 165, 138, 183), "", nil)
 
+test_exec("wut", "wot", "", {})
 test_exec("The quick brown", "\\w+", "g", { { [0] = "The" }, { [0] = "quick" }, { [0] = "brown" } })
 test_exec(
 	"The quick brown fox",
@@ -320,6 +342,7 @@ test_match("The quick brown", "\\w+", "g", { "The", "quick", "brown" })
 
 test_match_all_list("The quick brown", "\\d+", "g", {})
 test_match_all_list("The quick brown", "\\w+", "g", { "The", "quick", "brown" })
+test_match_all_list("𝄞𝄞𐐷𝄞𝄞", "𝄞*", "g", { "𝄞𝄞", "", "𝄞𝄞", "" })
 
 test_search("The quick brown", "nothing", "g", -1)
 test_search("The quick brown", "quick", "g", 5)
@@ -333,11 +356,29 @@ test_split("-2-3", "-", "g", { "", "2", "3" })
 test_split("--", "-", "g", { "", "", "" })
 test_split("Hello 1 word. Sentence number 2.", "(\\d)", "g", { "Hello ", "1", " word. Sentence number ", "2", "." })
 
+test_replace("a b", "\\w+", "", "_", "_ b")
+test_replace("a b", "\\w+", "", function()
+	return "_"
+end, "_ b")
+test_replace("12 34", "\\d+", "", "_", "_ 34")
+test_replace("123 456", "\\d+", "", "_", "_ 456")
 test_replace("a1b2c", "X", "g", "_", "a1b2c")
 test_replace("a1b2c", "\\d", "", "_", "a_b2c")
 test_replace("a1b2c", "\\d", "g", "_", "a_b_c")
 test_replace("a1b2c", "(\\d)(.)", "g", "$1", "a12")
 test_replace("a1b2c", "(\\d)(.)", "g", "$2", "abc")
+
+test_replace_all("a b", "\\w+", "g", "_", "_ _")
+test_replace_all("a b", "\\w+", "g", function()
+	return "_"
+end, "_ _")
+test_replace_all("12 34", "\\d+", "g", "_", "_ _")
+test_replace_all("123 456", "\\d+", "g", "_", "_ _")
+test_replace_all("a1b2c", "X", "g", "_", "a1b2c")
+test_replace_all("a1b2c", "\\d", "g", "_", "a_b_c")
+test_replace_all("a1b2c", "\\d", "g", "_", "a_b_c")
+test_replace_all("a1b2c", "(\\d)(.)", "g", "$1", "a12")
+test_replace_all("a1b2c", "(\\d)(.)", "g", "$2", "abc")
 
 local bold_green = "\27[1;32m"
 local bold_red = "\27[1;31m"
