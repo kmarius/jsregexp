@@ -3,6 +3,6 @@
   "Lua.runtime.version": "LuaJIT",
   "Lua.workspace.checkThirdParty": false,
   "Lua.workspace.library": [
-    "EmmyLua"
+    "LuaCATS"
   ]
 }
