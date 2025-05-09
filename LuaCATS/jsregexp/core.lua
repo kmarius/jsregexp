@@ -2,37 +2,51 @@
 
 local jsregexp = {}
 
+---
 ---Compile a regular expression. Throws if an error occurs.
+---
+---Example:
 ---```lua
 ---    local re = jsregexp.compile("\\w+", "g")
 ---```
+---
 ---@param re string
 ---@param flags? string
 ---@return JSRegExp.RegExp RegExp
 function jsregexp.compile(re, flags) end
 
+---
 ---Safely compile a regular expression.
+---
+---Example:
 ---```lua
 ---    local re, err = jsregexp.compile_safe("\\w+", "g")
 ---    if not re then
 ---      print(err)
 ---    end
 ---```
+---
 ---@param re string
 ---@param flags? string
 ---@return JSRegExp.RegExp? RegExp
 ---@return string? Error
 function jsregexp.compile_safe(re, flags) end
 
+---
 ---Convert a lua utf8 lua string to a utf16 js string. For internal use.
+---
 ---@param str string
 ---@return JSRegExp.JSString
 function jsregexp.to_jsstring(str) end
 
+---
 ---UTF-16 representation of a string. For internal use.
+---
 ---@class JSRegExp.JSString
 
+---
 ---A compiled JavaScript regular expression object.
+---
 ---@class JSRegExp.RegExp
 ---@field last_index integer the position at wchich the next match will be searched in re:exec or re:test (see notes below)
 ---@field source string the regexp string
@@ -46,7 +60,10 @@ function jsregexp.to_jsstring(str) end
 ---@field unicode boolean is the unicode flag set?
 local re = {}
 
+---
 ---Execute the regular expression against a string.
+---
+---Example:
 ---```lua
 ---    local re = jsregexp.compile("\\w+", "g")
 ---    local match = re:exec("Hello World")
@@ -54,22 +71,30 @@ local re = {}
 ---      print(match) -- Hello
 ---    end
 ---```
+---
 ---@param string string|JSRegExp.JSString
 ---@return JSRegExp.Match?
 function re:exec(string) end
 
+---
 ---Test the regular expression against a string.
+---
+---Example:
 ---```lua
 ---    local re = jsregexp.compile("\\w+", "g")
 ---    if re:test("Hello World") then
 ---      print("Matched!")
 ---    end
 ---```
+---
 ---@param string string|JSRegExp.JSString
 ---@return boolean
 function re:test(string) end
 
+---
 ---Returns a list of all matches or nil if no match.
+---
+---Example:
 ---```lua
 ---    local re = jsregexp.compile("\\w+", "g")
 ---    local matches = re:match("Hello World")
@@ -79,22 +104,30 @@ function re:test(string) end
 ---      end
 ---    end
 ---```
+---
 ---@param string string
 ---@return JSRegExp.Match[]?
 function re:match(string) end
 
+---
 ---Returns a closure that repeatedly calls re:exec, to be used in for-loops.
+---
+---Example:
 ---```lua
 ---    local re = jsregexp.compile("\\w+", "g")
 ---    for match in re:match_all("Hello World") do
 ---      print(match)
 ---    end
 ---```
+---
 ---@param string string
 ---@return fun():JSRegExp.Match
 function re:match_all(string) end
 
+---
 ---Returns a list of all matches.
+---
+---Example:
 ---```lua
 ---    local re = jsregexp.compile("\\w+", "g")
 ---    local matches = re:match("Hello World")
@@ -102,11 +135,15 @@ function re:match_all(string) end
 ---      print(match)
 ---    end
 ---```
+---
 ---@param string string
 ---@return JSRegExp.Match[]
 function re:match_all_list(string) end
 
+---
 ---Returns the 1-based index of the first match of re in str, or -1 if no match
+---
+---Example:
 ---```lua
 ---    local re = jsregexp.compile("Wo\\w+")
 ---    local idx = re:match("Hello World")
@@ -114,11 +151,15 @@ function re:match_all_list(string) end
 ---      print("Matched at index " .. idx)
 ---    end
 ---```
+---
 ---@param string string
 ---@return integer
 function re:search(string) end
 
+---
 ---Splits str at re, at most `limit` times
+---
+---Example:
 ---```lua
 ---    local re = jsregexp.compile("\\s+")
 ---    local res = re:split("Hello World")
@@ -126,16 +167,21 @@ function re:search(string) end
 ---      print(str)
 ---    end
 ---```
+---
 ---@param string string
 ---@param limit? integer
 ---@return string[]
 function re:split(string, limit) end
 
+---
 ---Relplace the first match (all matches, if global) of re in str by replacement.
+---
+---Example:
 ---```lua
 ---    local re = jsregexp.compile("\\w+")
 ---    local res = re:replace("Hello World", "Hey")
 ---    print(res) -- Hey World
+---
 ---    local res2 = re:replace("Hello World", function(match, str)
 ---      if match[0] == "Hello" then
 ---        return "Hey"
@@ -147,16 +193,21 @@ function re:split(string, limit) end
 ---    end)
 ---    print(res2) -- Hey World
 ---```
+---
 ---@param string string
 ---@param replacement (fun(match: JSRegExp.Match, str: string):string)|string
 ---@return string
 function re:replace(string, replacement) end
 
+---
 ---Relplace all occurances of re in str by replacement.
+---
+---Example:
 ---```lua
 ---    local re = jsregexp.compile("\\w+", "g")
 ---    local res = re:replace_all("Hello World", "Hey")
 ---    print(res) -- Hey Hey
+---
 ---    local res2 = re:replace_all("Hello World", function(match, str)
 ---      if match[0] == "Hello" then
 ---        return "Hey"
@@ -168,6 +219,7 @@ function re:replace(string, replacement) end
 ---    end)
 ---    print(res2) -- Hey Joe
 ---```
+---
 ---@param string string
 ---@param replacement (fun(match: JSRegExp.Match, str: string):string)|string
 ---@return string
