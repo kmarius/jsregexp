@@ -209,9 +209,10 @@ static void regexp_pushflags(lua_State *lstate, const struct regexp *r) {
   const char *named_groups = (flags & LRE_FLAG_NAMED_GROUPS) ? "n" : "";
   const char *dotall = (flags & LRE_FLAG_DOTALL) ? "s" : "";
   const char *utf16 = (flags & LRE_FLAG_UNICODE) ? "u" : "";
+  const char *unicode_sets = (flags & LRE_FLAG_UNICODE_SETS) ? "v" : "";
   const char *sticky = (flags & LRE_FLAG_STICKY) ? "y" : "";
-  lua_pushfstring(lstate, "%s%s%s%s%s%s%s%s", indices, ignorecase, global,
-                  multiline, named_groups, dotall, utf16, sticky);
+  lua_pushfstring(lstate, "%s%s%s%s%s%s%s%s%s", indices, ignorecase, global,
+                  multiline, named_groups, dotall, utf16, unicode_sets, sticky);
 }
 
 static int regexp_tostring(lua_State *lstate) {
@@ -442,6 +443,8 @@ static int regexp_index(lua_State *lstate) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_STICKY);
     } else if (streq(key, "unicode")) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_UNICODE);
+    } else if (streq(key, "unicode_sets")) {
+      lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_UNICODE_SETS);
     } else if (streq(key, "has_indices")) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_INDICES);
     } else if (streq(key, "source")) {
@@ -520,6 +523,9 @@ static int jsregexp_compile(lua_State *lstate) {
         break;
       case 'u':
         re_flags |= LRE_FLAG_UNICODE;
+        break;
+      case 'v':
+        re_flags |= LRE_FLAG_UNICODE_SETS;
         break;
       case 'y':
         re_flags |= LRE_FLAG_STICKY;

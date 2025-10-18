@@ -135,7 +135,7 @@ local function test_test(str, regex, flags, want)
 	for _, match_wanted in ipairs(want) do
 		local match = r:test(str)
 		if match ~= match_wanted then
-			return fail(string.format("test mismatch, wanted: %s, got: %s", match_wanted, match))
+			return fail(string.format("test mismatch, wanted: %s, got: %s", tostring(match_wanted), tostring(match)))
 		end
 	end
 	local match = r:test(str)
@@ -336,6 +336,18 @@ test_exec("The Quick Brown Fox Jumps Over The Lazy Dog", "quick\\s(?<color>brown
 test_test("The quick brown", "\\w+", "", { true })
 test_test("The quick brown", "\\d+", "", { false })
 test_test("The quick brown", "\\w+", "g", { true, true, true })
+
+test_test("π", "\\p{Script_Extensions=Greek}", "u", { true })
+test_test("π", "[\\p{Script_Extensions=Greek}--π]", "v", { false })
+test_test("α", "[\\p{Script_Extensions=Greek}--π]", "v", { true })
+
+-- ⚽ consists of one code point, the other emojis of two
+test_test("⚽", "^\\p{Emoji}$", "u", { true })
+test_test("👨🏾‍⚕️", "^\\p{Emoji}$", "u", { false })
+
+test_test("⚽", "^\\p{RGI_Emoji}$", "v", { true })
+test_test("👨🏾‍⚕️", "^\\p{RGI_Emoji}$", "v", { true })
+test_test("😄", "^\\p{RGI_Emoji}$", "v", { true })
 
 test_match("The quick brown", "\\d+", "g", nil)
 test_match("The quick brown", "\\w+", "g", { "The", "quick", "brown" })
