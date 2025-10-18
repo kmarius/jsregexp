@@ -35,8 +35,13 @@
 void *lre_realloc(void *opaque, void *ptr, size_t size) {
   return realloc(ptr, size);
 }
+
 BOOL lre_check_stack_overflow(void *opaque, size_t alloca_size) {
   return FALSE;
+}
+
+int lre_check_timeout(void *opaque) {
+  return 0;
 }
 
 struct regexp {
