@@ -108,8 +108,9 @@ static inline uint16_t *utf8_to_utf16(const uint8_t *input, uint32_t n,
       return NULL;
     }
     if ((unsigned)c > 0xffff) {
-      *q++ = (((c - 0x10000) >> 10) | (0xd8 << 8));
-      *q++ = (c & 0xfffff) | (0xdc << 8);
+      c -= 0x10000;
+      *q++ = 0xd800 | (c >> 10);
+      *q++ = 0xdc00 | (c & 0x3ff);
     } else {
       *q++ = c & 0xffff;
     }
