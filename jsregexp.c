@@ -167,6 +167,55 @@ static int jsstring_new(lua_State *lstate) {
   return 1;
 }
 
+static int jsregexp_escape(lua_State *L) {
+  size_t len;
+  char s[16];
+  int l;
+
+  const char *str = luaL_checklstring(L, 1, &len);
+
+  luaL_Buffer B;
+  luaL_buffinit(L, &B);
+
+  for (int i = 0; i < len; i++) {
+    uint8_t c = str[i];
+    if (c < 33) {
+      if (c >= 9 && c <= 13) {
+        luaL_addchar(&B, '\\');
+        luaL_addchar(&B, "tnvfr"[c - 9]);
+      } else {
+        goto hex2;
+      }
+    } else if (c < 128) {
+      if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') ||
+          (c >= 'a' && c <= 'z')) {
+        if (i == 0)
+          goto hex2;
+      } else if (strchr(",-=<>#&!%:;@~'`\"", c)) {
+        goto hex2;
+      } else if (c != '_') {
+        luaL_addchar(&B, '\\');
+      }
+      luaL_addchar(&B, c);
+    } else {
+    hex2:
+      l = snprintf(s, sizeof s, "\\x%02x", c);
+      luaL_addlstring(&B, s, l);
+    }
+    // NOTE: javascript's escape also deals with non-ascii whitespace and lone
+    // (utf16) surrogates. I'm not sure if we need to deal with those as
+    // everything here is utf8. Probably has to revisited for a future x flag.
+    //
+    // "Flag /u and /v handle surrogate pairs as units. Therefore, we must
+    // escape lone surrogates so that they are not combined with preceding or
+    // succeeding lone surrogates in a regular expression pattern."
+    //
+    // Would the equivalent be lone (non-)continuation bytes?
+  }
+  luaL_pushresult(&B);
+  return 1;
+}
+
 static int jsstring_gc(lua_State *lstate) {
   struct jsstring *s = lua_touserdata(lstate, 1);
   free(s->u.str8);
@@ -573,6 +622,7 @@ static int jsregexp_compile_safe(lua_State *lstate) {
 static const struct luaL_Reg jsregexp_lib[] = {
     {"compile", jsregexp_compile},
     {"compile_safe", jsregexp_compile_safe},
+    {"escape", jsregexp_escape},
     {"to_jsstring", jsstring_new},
     {NULL, NULL}};
 

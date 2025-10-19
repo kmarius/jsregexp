@@ -120,6 +120,20 @@ local function test_exec(str, regex, flags, want)
 	successes = successes + 1
 end
 
+local function test_escape(str, want)
+	local function fail(...)
+		print(str, want)
+		print(...)
+		fails = fails + 1
+	end
+	tests = tests + 1
+	local res = jsregexp.escape(str)
+	if res ~= want then
+		return fail(string.format("escape: wanted: %s, got: %s", want, res))
+	end
+	successes = successes + 1
+end
+
 local function test_test(str, regex, flags, want)
 	local function fail(...)
 		print(str, regex, flags, want)
@@ -332,6 +346,18 @@ test_exec("The Quick Brown Fox Jumps Over The Lazy Dog", "quick\\s(?<color>brown
 		},
 	},
 })
+
+test_escape("foo.bar", "\\x66oo\\.bar")
+test_escape("foo-bar", "\\x66oo\\x2dbar")
+test_escape("foo\nbar", "\\x66oo\\nbar")
+test_escape("0", "\\x30")
+test_escape("(foo)", "\\(foo\\)")
+test_escape(" ", "\\x20")
+test_escape("\\d \\D (?:)", "\\\\d\\x20\\\\D\\x20\\(\\?\\x3a\\)")
+
+test_test("abc", "a.c", "", { true })
+test_test("abc", jsregexp.escape("a.c"), "", { false })
+test_test("a.c", jsregexp.escape("a.c"), "", { true })
 
 test_test("The quick brown", "\\w+", "", { true })
 test_test("The quick brown", "\\d+", "", { false })
