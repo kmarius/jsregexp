@@ -56,6 +56,7 @@ re.ignore_case  -- is the ignore_case flag set?
 re.multiline    -- is the multiline flag set?
 re.sticky       -- is the sticky flag set?
 re.unicode      -- is the unicode flag set?
+re.unicode_sets -- is the unicode_sets flag set?
 ```
 Calling `tostring` on a RegExp object returns representation in the form of `"/<source>/<flags>"`.
 
