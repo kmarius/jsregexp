@@ -202,15 +202,10 @@ static int jsregexp_escape(lua_State *L) {
       l = snprintf(s, sizeof s, "\\x%02x", c);
       luaL_addlstring(&B, s, l);
     }
-    // NOTE: javascript's escape also deals with non-ascii whitespace and lone
-    // (utf16) surrogates. I'm not sure if we need to deal with those as
-    // everything here is utf8. Probably has to revisited for a future x flag.
-    //
-    // "Flag /u and /v handle surrogate pairs as units. Therefore, we must
-    // escape lone surrogates so that they are not combined with preceding or
-    // succeeding lone surrogates in a regular expression pattern."
-    //
-    // Would the equivalent be lone (non-)continuation bytes?
+    // TODO: javascript's escape also deals with non-ascii whitespace and lone
+    // (utf16) surrogates. I don't think we have to deal with surrogates since
+    // we only pass utf8. We probably have to revisit (unicode) whitespace for
+    // a future x flag.
   }
   luaL_pushresult(&B);
   return 1;
