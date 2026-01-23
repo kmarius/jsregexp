@@ -33,6 +33,21 @@ function jsregexp.compile(re, flags) end
 function jsregexp.compile_safe(re, flags) end
 
 ---
+---Escape a string so that it can be safely used as a pattern in `jsregexp.compile`.
+---
+---Example:
+---```lua
+---    local pat = jsregexp.escape("example.com") -- "\\x65xample\\.com"
+---    local re = jsregexp.compile(pat)
+---    re:test("exampleZcom") -- false
+---    re:test("example.com") -- true
+---```
+---
+---@param str string
+---@return string pattern
+function jsregexp.escape(str) end
+
+---
 ---Convert a lua utf8 lua string to a utf16 js string. For internal use.
 ---
 ---@param str string
@@ -58,6 +73,7 @@ function jsregexp.to_jsstring(str) end
 ---@field multiline boolean is the multiline flag set?
 ---@field sticky boolean is the sticky flag set?
 ---@field unicode boolean is the unicode flag set?
+---@field unicode_sets boolean is the unicode_sets flag set?
 local re = {}
 
 ---

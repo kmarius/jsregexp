@@ -35,8 +35,13 @@
 void *lre_realloc(void *opaque, void *ptr, size_t size) {
   return realloc(ptr, size);
 }
+
 BOOL lre_check_stack_overflow(void *opaque, size_t alloca_size) {
   return FALSE;
+}
+
+int lre_check_timeout(void *opaque) {
+  return 0;
 }
 
 struct regexp {
@@ -103,8 +108,9 @@ static inline uint16_t *utf8_to_utf16(const uint8_t *input, uint32_t n,
       return NULL;
     }
     if ((unsigned)c > 0xffff) {
-      *q++ = (((c - 0x10000) >> 10) | (0xd8 << 8));
-      *q++ = (c & 0xfffff) | (0xdc << 8);
+      c -= 0x10000;
+      *q++ = 0xd800 | (c >> 10);
+      *q++ = 0xdc00 | (c & 0x3ff);
     } else {
       *q++ = c & 0xffff;
     }
@@ -161,6 +167,50 @@ static int jsstring_new(lua_State *lstate) {
   return 1;
 }
 
+static int jsregexp_escape(lua_State *L) {
+  size_t len;
+  char s[16];
+  int l;
+
+  const char *str = luaL_checklstring(L, 1, &len);
+
+  luaL_Buffer B;
+  luaL_buffinit(L, &B);
+
+  for (int i = 0; i < len; i++) {
+    uint8_t c = str[i];
+    if (c < 33) {
+      if (c >= 9 && c <= 13) {
+        luaL_addchar(&B, '\\');
+        luaL_addchar(&B, "tnvfr"[c - 9]);
+      } else {
+        goto hex2;
+      }
+    } else if (c < 128) {
+      if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') ||
+          (c >= 'a' && c <= 'z')) {
+        if (i == 0)
+          goto hex2;
+      } else if (strchr(",-=<>#&!%:;@~'`\"", c)) {
+        goto hex2;
+      } else if (c != '_') {
+        luaL_addchar(&B, '\\');
+      }
+      luaL_addchar(&B, c);
+    } else {
+    hex2:
+      l = snprintf(s, sizeof s, "\\x%02x", c);
+      luaL_addlstring(&B, s, l);
+    }
+    // TODO: javascript's escape also deals with non-ascii whitespace and lone
+    // (utf16) surrogates. I don't think we have to deal with surrogates since
+    // we only pass utf8. We probably have to revisit (unicode) whitespace for
+    // a future x flag.
+  }
+  luaL_pushresult(&B);
+  return 1;
+}
+
 static int jsstring_gc(lua_State *lstate) {
   struct jsstring *s = lua_touserdata(lstate, 1);
   free(s->u.str8);
@@ -204,9 +254,10 @@ static void regexp_pushflags(lua_State *lstate, const struct regexp *r) {
   const char *named_groups = (flags & LRE_FLAG_NAMED_GROUPS) ? "n" : "";
   const char *dotall = (flags & LRE_FLAG_DOTALL) ? "s" : "";
   const char *utf16 = (flags & LRE_FLAG_UNICODE) ? "u" : "";
+  const char *unicode_sets = (flags & LRE_FLAG_UNICODE_SETS) ? "v" : "";
   const char *sticky = (flags & LRE_FLAG_STICKY) ? "y" : "";
-  lua_pushfstring(lstate, "%s%s%s%s%s%s%s%s", indices, ignorecase, global,
-                  multiline, named_groups, dotall, utf16, sticky);
+  lua_pushfstring(lstate, "%s%s%s%s%s%s%s%s%s", indices, ignorecase, global,
+                  multiline, named_groups, dotall, utf16, unicode_sets, sticky);
 }
 
 static int regexp_tostring(lua_State *lstate) {
@@ -437,6 +488,8 @@ static int regexp_index(lua_State *lstate) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_STICKY);
     } else if (streq(key, "unicode")) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_UNICODE);
+    } else if (streq(key, "unicode_sets")) {
+      lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_UNICODE_SETS);
     } else if (streq(key, "has_indices")) {
       lua_pushboolean(lstate, lre_get_flags(r->bc) & LRE_FLAG_INDICES);
     } else if (streq(key, "source")) {
@@ -516,6 +569,9 @@ static int jsregexp_compile(lua_State *lstate) {
       case 'u':
         re_flags |= LRE_FLAG_UNICODE;
         break;
+      case 'v':
+        re_flags |= LRE_FLAG_UNICODE_SETS;
+        break;
       case 'y':
         re_flags |= LRE_FLAG_STICKY;
         break;
@@ -561,6 +617,7 @@ static int jsregexp_compile_safe(lua_State *lstate) {
 static const struct luaL_Reg jsregexp_lib[] = {
     {"compile", jsregexp_compile},
     {"compile_safe", jsregexp_compile_safe},
+    {"escape", jsregexp_escape},
     {"to_jsstring", jsstring_new},
     {NULL, NULL}};
 

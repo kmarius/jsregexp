@@ -120,6 +120,20 @@ local function test_exec(str, regex, flags, want)
 	successes = successes + 1
 end
 
+local function test_escape(str, want)
+	local function fail(...)
+		print(str, want)
+		print(...)
+		fails = fails + 1
+	end
+	tests = tests + 1
+	local res = jsregexp.escape(str)
+	if res ~= want then
+		return fail(string.format("escape: wanted: %s, got: %s", want, res))
+	end
+	successes = successes + 1
+end
+
 local function test_test(str, regex, flags, want)
 	local function fail(...)
 		print(str, regex, flags, want)
@@ -135,7 +149,7 @@ local function test_test(str, regex, flags, want)
 	for _, match_wanted in ipairs(want) do
 		local match = r:test(str)
 		if match ~= match_wanted then
-			return fail(string.format("test mismatch, wanted: %s, got: %s", match_wanted, match))
+			return fail(string.format("test mismatch, wanted: %s, got: %s", tostring(match_wanted), tostring(match)))
 		end
 	end
 	local match = r:test(str)
@@ -333,9 +347,33 @@ test_exec("The Quick Brown Fox Jumps Over The Lazy Dog", "quick\\s(?<color>brown
 	},
 })
 
+test_escape("foo.bar", "\\x66oo\\.bar")
+test_escape("foo-bar", "\\x66oo\\x2dbar")
+test_escape("foo\nbar", "\\x66oo\\nbar")
+test_escape("0", "\\x30")
+test_escape("(foo)", "\\(foo\\)")
+test_escape(" ", "\\x20")
+test_escape("\\d \\D (?:)", "\\\\d\\x20\\\\D\\x20\\(\\?\\x3a\\)")
+
+test_test("abc", "a.c", "", { true })
+test_test("abc", jsregexp.escape("a.c"), "", { false })
+test_test("a.c", jsregexp.escape("a.c"), "", { true })
+
 test_test("The quick brown", "\\w+", "", { true })
 test_test("The quick brown", "\\d+", "", { false })
 test_test("The quick brown", "\\w+", "g", { true, true, true })
+
+test_test("π", "\\p{Script_Extensions=Greek}", "u", { true })
+test_test("π", "[\\p{Script_Extensions=Greek}--π]", "v", { false })
+test_test("α", "[\\p{Script_Extensions=Greek}--π]", "v", { true })
+
+-- ⚽ consists of one code point, the other emojis of two
+test_test("⚽", "^\\p{Emoji}$", "u", { true })
+test_test("👨🏾‍⚕️", "^\\p{Emoji}$", "u", { false })
+
+test_test("⚽", "^\\p{RGI_Emoji}$", "v", { true })
+test_test("👨🏾‍⚕️", "^\\p{RGI_Emoji}$", "v", { true })
+test_test("😄", "^\\p{RGI_Emoji}$", "v", { true })
 
 test_match("The quick brown", "\\d+", "g", nil)
 test_match("The quick brown", "\\w+", "g", { "The", "quick", "brown" })
