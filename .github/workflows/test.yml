@@ -17,6 +17,7 @@ jobs:
             "5.2",
             "5.3",
             "5.4",
+            "5.5",
             "luajit-2.0.5",
             "luajit-2.1.0-beta3",
           ]
@@ -25,12 +26,12 @@ jobs:
     runs-on: ${{ matrix.machineTag }}
     steps:
       - uses: actions/checkout@v2
-      - uses: leafo/gh-actions-lua@v11
+      - uses: leafo/gh-actions-lua@v13
         with:
           luaVersion: ${{ matrix.luaVersion }}
-      - uses: leafo/gh-actions-luarocks@v5
+      - uses: leafo/gh-actions-luarocks@v6
         with:
-          luarocksVersion: "3.9.1"
+          luarocksVersion: "3.13.0"
       - name: build
         run: |
           luarocks make
