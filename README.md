@@ -1,6 +1,6 @@
 # jsregexp
 
-Provides ECMAScript regular expressions for Lua 5.1, 5.2, 5.3, 5.4 and LuaJit. Uses `libregexp` from Fabrice Bellard's [QuickJS](https://bellard.org/quickjs/).
+Provides ECMAScript regular expressions for Lua 5.1, 5.2, 5.3, 5.4, 5.5 and LuaJit. Uses `libregexp` from Fabrice Bellard's [QuickJS](https://bellard.org/quickjs/).
 
 ## Installation
 
