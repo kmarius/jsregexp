@@ -1,8 +1,8 @@
 package = "jsregexp"
-version = "0.3.0-1"
+version = "0.3.1-1"
 source = {
 	url = "git://github.com/kmarius/jsregexp.git",
-	tag = "v0.3.0",
+	tag = "v0.3.1",
 }
 description = {
 	summary = "JavaScript (ECMA19) regular expressions for Lua",
