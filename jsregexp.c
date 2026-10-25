@@ -397,16 +397,28 @@ static int regexp_exec(lua_State *lstate) {
   // [groups.indices?, indices?, groups?, match]
 
   for (int i = 0; i < capture_count; i++) {
-    uint32_t a, b;
-    if (input->is_wide_char) {
-      a = input->indices[(capture[2 * i] - input->u.str8) / 2];
-      b = input->indices[(capture[2 * i + 1] - input->u.str8) / 2];
-      lua_pushlstring(lstate, input->bstr + a, b - a);
+
+    int32_t a, b;
+
+    if (capture[2 * i]) {
+      // group matched
+
+      if (input->is_wide_char) {
+        a = input->indices[(capture[2 * i] - input->u.str8) / 2];
+        b = input->indices[(capture[2 * i + 1] - input->u.str8) / 2];
+        lua_pushlstring(lstate, input->bstr + a, b - a);
+      } else {
+        a = capture[2 * i] - input->u.str8;
+        b = capture[2 * i + 1] - input->u.str8;
+        lua_pushlstring(lstate, (char *)capture[2 * i],
+                        capture[2 * i + 1] - capture[2 * i]);
+      }
     } else {
-      a = capture[2 * i] - input->u.str8;
-      b = capture[2 * i + 1] - input->u.str8;
-      lua_pushlstring(lstate, (char *)capture[2 * i],
-                      capture[2 * i + 1] - capture[2 * i]);
+      // TODO: js match results contain undefined for non-matching groups but
+      // that but that doesn't work work with nil because it preaks ipairs
+      a = -1;
+      b = 0;
+      lua_pushlstring(lstate, "", 0);
     }
 
     if (has_indices) {
@@ -415,6 +427,7 @@ static int regexp_exec(lua_State *lstate) {
       lua_rawseti(lstate, -2, 1);
       lua_pushinteger(lstate, b);
       lua_rawseti(lstate, -2, 2);
+
       // [..., match, string, {a, b}]
       if (group_names) {
         // [indices.groups, indices, groups, match, string, {a, b}]

@@ -347,6 +347,11 @@ test_exec("The Quick Brown Fox Jumps Over The Lazy Dog", "quick\\s(?<color>brown
 	},
 })
 
+test_exec("öb", "(a)|b", "", { { [0] = "b", [1] = "" } })
+-- note: js lists non-matching named groups as <name> = undefined which does not work with nil
+-- same with indices, probably
+test_exec("öb", "(?<name>a)|b", "n", { { [0] = "b", [1] = "", groups = { name = "" } } })
+
 test_escape("foo.bar", "\\x66oo\\.bar")
 test_escape("foo-bar", "\\x66oo\\x2dbar")
 test_escape("foo\nbar", "\\x66oo\\nbar")
