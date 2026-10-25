@@ -95,6 +95,7 @@ m.indices        -- table of begin/end indices of all match groups (if "d" flag 
 m.indices.groups -- table of named groups and their begin/end indices (if "d" flag is set)
 ```
 Calling `tostring` on a match object returns the full  match `m[0]`.
+Note that optional capture groups that did not match will contain `""` and have indices `{ 0, 0 }` if `"d"` flag is set.
 
 ## Example
 ```lua
